@@ -3,356 +3,535 @@
 #include <malloc.h>
 #include <stdarg.h>
 #include <string.h>
+#include <vector>
 
 using namespace std;
 
-enum{ID, END, BREAK, CHAR, DOUBLE, ELSE, FOR, IF, INT, RETURN, STRUCT, VOID, WHILE, EQUAL, CT_INT, ASSIGN, SEMICOLON, COMMENT}; // tokens codes TBA
-
-void err(const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    fprintf(stderr, "error: ");
-    vfprintf(stderr, fmt, va);
-    fputc('\n', stderr);
-    va_end(va);
-    //exit(-1);
-}
-
-#define SAFEALLOC(var, Type) if((var = (Type*)malloc(sizeof(Type))) == NULL) err("not enough memory");
+enum{ID, END, BREAK, CHAR, DOUBLE, ELSE, FOR, IF, INT, RETURN, STRUCT, VOID, WHILE, EQUAL, CT_INT, ASSIGN, SEMICOLON, COMMENT, CT_REAL}; // tokens codes TBA
 
 struct Token
 {
     int code; // code (name)
+    char *text = nullptr; // used for ID, CT_STRING (dynamically allocated), represents the text
     union
     {
-        char *text; // used for ID, CT_STRING (dynamically allocated)
-        long int i; // used for CT_INT, CT_CHAR
+        int64_t i; // used for CT_INT, CT_CHAR
         double r; // used for CT_REAL
     };
 
-    int line; // the input file line
-    Token *next; // link to the next token
+    int line = 0; // the input file line, can be 0
+    Token *next = nullptr; // link to the next token, can be null if not used as a list
+
+    Token()
+    {
+    }
+
+    Token(const Token &t1)
+    {
+        code = t1.code;
+        line = t1.line;
+        i = t1.i;
+
+        if (t1.text != nullptr) //todo maybe replace with c++ string
+        {
+            int l = strlen(t1.text);
+            text = new char [l + 1];
+            memcpy(text, t1.text, l);
+            text[l] = 0;
+        }
+    }
+
+    ~Token()
+    {
+        if(text != nullptr)
+            delete text;
+    }
 };
-
-Token * lastToken = nullptr;
-Token * head = nullptr;
-Token * addTk(int code, int line = 0)
-{
-    Token *tk;
-    SAFEALLOC(tk,Token)
-    tk->code = code;
-    tk->line = line;
-    tk->next = NULL;
-
-    if(lastToken)
-    {
-        lastToken->next = tk;
-    }
-    else
-    {
-        head = tk;
-    }
-
-    lastToken = tk;
-    return tk;
-}
-
-void tkerr(const Token *tk,const char *fmt,...)
-{
-    va_list va;
-    va_start(va, fmt);
-    fprintf(stderr, "error in line %d: ", tk->line);
-    vfprintf(stderr, fmt, va);
-    fputc('\n', stderr);
-    va_end(va);
-    //exit(-1);
-}
 
 char* createString(char * p1, char * p2)
 {
     int len = p2 - p1;
-    char * ans = (char *)malloc(len + 1);
+    char * ans = new char[len + 1];
     memcpy(ans, p1, len);
     ans[len] = 0;
-    cout<<"Created string "<<ans<<"\n";
+    cout<<"[DEBUG] Created string "<<ans<<", l="<<len<<"\n";
     return ans;
 }
 
-
-int getNextToken(char * str)
+class LexicalAnalyzer
 {
-    int line = 0;
-    int state = 0;
-    int nCh = 0;
-    char ch = 0;
-    char *pStartCh = str;
-    char * pCrtCh = str;
-    int prec_spaces = 0;
-    Token *tk;
+    //pointer to source code to translate
+    char * src = nullptr;
+    char * pCrtCh = nullptr;
 
-    while(1)
-    { // infinite loop
-        ch = *pCrtCh;
-        cout<<"At "<<ch<<" "<<(int)ch<<" state = "<<state<<"\n";
-        switch(state)
+    //status variable
+    int status = 0; //0 - not run, 1 - done, 2 - error
+
+    //token list
+    vector<Token> tokenList;
+    void addTk(int code, int line = 0, char * txt = nullptr)
+    {
+        Token temp;
+        temp.code = code;
+        temp.line = line;
+        if(txt == nullptr)
         {
-            case 0: // transitions test for state 0
-                if(isalpha(ch) || ch == '_')
-                {
-                    pStartCh = pCrtCh; // memorizes the beginning of the ID
-                    pCrtCh++; // consume the character
-                    state = 1; // set the new state
-                }
+            temp.text = new char[2];
+            temp.text[0] = 0;
+            temp.text[1] = 0;
+        }
+        tokenList.push_back(temp);
+    }
 
-                else if(ch == '=')
-                {
-                    pCrtCh++;
-                    state = 3;
-                }
+    void addTk(Token t)
+    {
+        tokenList.push_back(t);
+    }
 
-                else if(ch >= '1' && ch <= '9')
-                {
-                    pCrtCh++;
-                    state = 6;
-                }
+    //dfa
+    int getNextToken()
+    {
+        int code = 0;
+        int line = 0;
+        int state = 0;
+        int nCh = 0;
+        char ch = 0;
+        char *pStartCh = pCrtCh;
+        int prec_spaces = 0;
+        Token temp;
 
-                else if(ch == '0')
-                {
-                    pCrtCh++;
-                    state = 9;
-                }
+        while(1)
+        { // infinite loop
+            ch = *pCrtCh;
+            //cout<<"At "<<ch<<" "<<(int)ch<<" state = "<<state<<"\n";
+            switch(state)
+            {
+                case 0: // transitions test for state 0
+                    if(isalpha(ch) || ch == '_')
+                    {
+                        pStartCh = pCrtCh; // memorizes the beginning of the ID
+                        pCrtCh++; // consume the character
+                        state = 1; // set the new state
+                    }
 
-                else if(ch == '/')
-                {
-                    pCrtCh++;
-                    state = 13;
-                }
+                    else if(ch == '=')
+                    {
+                        pCrtCh++;
+                        state = 3;
+                    }
 
-                else if(ch == ' ' || ch == '\r' || ch == '\t')
-                {
-                    pCrtCh++; // consume the character and remains in state 0
-                    prec_spaces++;
-                }
+                    else if(ch >= '1' && ch <= '9')
+                    {
+                        pCrtCh++;
+                        state = 6;
+                    }
 
-                else if(ch == '\n')
-                { // handled separately in order to update the current line
-                    line++;
-                    pCrtCh++;
-                }
+                    else if(ch == '0')
+                    {
+                        pCrtCh++;
+                        state = 9;
+                    }
 
-                else if(ch == 0)
-                { // the end of the input string
-                    cout<<"END ";
-                    addTk(END);
+                    else if(ch == '/')
+                    {
+                        pCrtCh++;
+                        state = 13;
+                    }
+
+                    else if(ch == ' ' || ch == '\r' || ch == '\t')
+                    {
+                        pCrtCh++; // consume the character and remains in state 0
+                        prec_spaces++;
+                    }
+
+                    else if(ch == '\n')
+                    { // handled separately in order to update the current line
+                        line++;
+                        pCrtCh++;
+                    }
+
+                    else if(ch == 0)
+                    { // the end of the input string
+                        cout<<"END\n";
+                        addTk(END);
+                        status = 1;
+                        return 1;
+                    }
+
+                    else
+                    {
+                        cout<<"Found unsupported "<<ch<<" ";
+                        //tkerr(addTk(END), "invalid character");
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 1:
+                    if(isalnum(ch) || ch == '_')
+                        pCrtCh++;
+                    else state = 2;
+                    break;
+
+                case 2:
+                    nCh = pCrtCh - pStartCh; // the id length
+                    // keywords tests
+                    if(nCh == 5 && !memcmp(pStartCh, "break", 5))
+                        code = BREAK;
+                    else if(nCh == 4 && !memcmp(pStartCh, "char", 4))
+                        code = CHAR;
+                    else if(nCh == 6 && !memcmp(pStartCh, "double", 6))
+                        code = DOUBLE;
+                    else if(nCh == 4 && !memcmp(pStartCh, "else", 4))
+                        code = ELSE;
+                    else if(nCh == 3 && !memcmp(pStartCh, "for", 3))
+                        code = FOR;
+                    else if(nCh == 2 && !memcmp(pStartCh, "if", 2))
+                        code = IF;
+                    else if(nCh == 3 && !memcmp(pStartCh, "int", 3))
+                        code = INT;
+                    else if(nCh == 6 && !memcmp(pStartCh, "return", 6))
+                        code = RETURN;
+                    else if(nCh == 6 && !memcmp(pStartCh, "struct", 6))
+                        code = STRUCT;
+                    else if(nCh == 4 && !memcmp(pStartCh, "void", 4))
+                        code = VOID;
+                    else if(nCh == 5 && !memcmp(pStartCh, "while", 5))
+                        code = WHILE;
+                    else
+                    { // if no keyword, then it is an ID
+                        code = ID;
+                        cout<<"ID ";
+                    }
+                    temp.code = code;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
                     return 0;
-                }
 
-                else
-                {
-                    cout<<"Found unsupported "<<ch<<" ";
-                    tkerr(addTk(END), "invalid character");
+                case 3:
+                    if(ch == '=')
+                    {
+                        pCrtCh++;
+                        state = 4;
+                    }
+                    else state = 5;
+                    break;
+
+                case 4:
+                    temp.code = EQUAL;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"== ";
                     return 0;
-                }
-                break;
 
-            case 1:
-                if(isalnum(ch) || ch == '_')
-                    pCrtCh++;
-                else state = 2;
-                break;
-
-            case 2:
-                nCh = pCrtCh - pStartCh; // the id length
-                // keywords tests
-                if(nCh == 5 && !memcmp(pStartCh, "break", 5))
-                    tk = addTk(BREAK);
-                else if(nCh == 4 && !memcmp(pStartCh, "char", 4))
-                    tk = addTk(CHAR);
-                else if(nCh == 6 && !memcmp(pStartCh, "double", 6))
-                    tk = addTk(DOUBLE);
-                else if(nCh == 4 && !memcmp(pStartCh, "else", 4))
-                    tk = addTk(ELSE);
-                else if(nCh == 3 && !memcmp(pStartCh, "for", 3))
-                    tk = addTk(FOR);
-                else if(nCh == 2 && !memcmp(pStartCh, "if", 2))
-                    tk = addTk(IF);
-                else if(nCh == 3 && !memcmp(pStartCh, "int", 3))
-                    tk = addTk(INT);
-                else if(nCh == 6 && !memcmp(pStartCh, "return", 6))
-                    tk = addTk(RETURN);
-                else if(nCh == 6 && !memcmp(pStartCh, "struct", 6))
-                    tk = addTk(STRUCT);
-                else if(nCh == 4 && !memcmp(pStartCh, "void", 4))
-                    tk = addTk(VOID);
-                else if(nCh == 5 && !memcmp(pStartCh, "while", 5))
-                    tk = addTk(WHILE);
-                else
-                { // if no keyword, then it is an ID
-                    tk = addTk(ID);
-                    cout<<"ID ";
-                }
-                tk->text = createString(pStartCh, pCrtCh);
-                return nCh + prec_spaces;
-
-            case 3:
-                if(ch == '=')
-                {
-                    pCrtCh++;
-                    state = 4;
-                }
-                else state = 5;
-                break;
-
-            case 4:
-                tk = addTk(EQUAL);
-                tk->text = createString(pStartCh, pCrtCh);
-                cout<<"== ";
-                return pCrtCh - pStartCh + prec_spaces;
-
-            case 5:
-                tk = addTk(ASSIGN);
-                tk->text = createString(pStartCh, pCrtCh);
-                cout<<"= ";
-                return pCrtCh - pStartCh + prec_spaces;
-
-            case 6:
-                if(isdigit(ch))
-                {
-                    pCrtCh++;
-                    state = 7;
-                }
-                else
-                {
-                    state = 8;
-                }
-                break;
-
-            case 7:
-                if(isdigit(ch))
-                {
-                    pCrtCh++;
-                    state = 7;
-                }
-                else
-                {
-                    state = 8;
-                }
-                break;
-
-            case 8:
-                tk = addTk(CT_INT);
-                tk->text = createString(pStartCh, pCrtCh);
-                return pCrtCh - pStartCh + prec_spaces;
-
-            case 9:
-                if(ch >= '0' && ch <= '7')
-                {
-                    pCrtCh++;
-                    state = 10;
-                }
-                else if(ch == 'x')
-                {
-                    pCrtCh++;
-                    state = 11;
-                }
-                else
-                {
-                    state = 8;
-                }
-                break;
-
-            case 10:
-                if(ch >= '0' && ch <= '7')
-                {
-                    pCrtCh++;
-                    state = 10;
-                }
-                else
-                {
-                    state = 8;
-                }
-                break;
-
-            case 11:
-                if(isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
-                {
-                    pCrtCh++;
-                    state = 11;
-                }
-                else
-                {
-                    state = 8;  //this allows '0x' to be considered valid
-                }
-                break;
-
-            case 13:
-                if(ch == '*')
-                {
-                    pCrtCh++;
-                    state = 14;
-                }
-                else
-                {
-                    cout<<"Found / without succeding *\n";
-                    tkerr(addTk(END), "invalid character");
+                case 5:
+                    temp.code = ASSIGN;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"= ";
                     return 0;
-                }
-                break;
 
-            case 14:
-                if(ch == '*')
-                {
-                    pCrtCh++;
-                    state = 15;
-                }
-                else
-                {
-                    pCrtCh++;
-                    state = 14;
-                }
-                break;
+                case 6:
+                    if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 6;  //why do i need 7?
+                    }
+                    else if (ch == '.')
+                    {
+                        pCrtCh++;
+                        state = 17;
+                    }
+                    else if(ch == 'e' || ch == 'E')
+                    {
+                        pCrtCh++;
+                        state = 19;
+                    }
+                    else
+                    {
+                        state = 8;
+                    }
+                    break;
 
-            case 15:
-                if(ch == '*')
-                {
-                    pCrtCh++;
-                    state = 15;
-                }
-                else if (ch == '/')
-                {
-                    pCrtCh++;
-                    state = 16;
-                }
-                else
-                {
-                    state = 14;
-                }
-                break;
+                case 7:
+                    if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 7;
+                    }
+                    else if (ch == '.')
+                    {
+                        pCrtCh++;
+                        state = 17;
+                    }
+                    else if(ch == 'e' || ch == 'E')
+                    {
+                        pCrtCh++;
+                        state = 19;
+                    }
+                    else
+                    {
+                        cout<<"invalid real const!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
 
-            case 16:
-                tk = addTk(COMMENT);
-                tk->text = createString(pStartCh, pCrtCh);
-                return pCrtCh - pStartCh + prec_spaces;
+                case 8:
+                    temp.code = CT_INT;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    return 0;
+
+                case 9:
+                    if(ch >= '0' && ch <= '7')
+                    {
+                        pCrtCh++;
+                        state = 10;
+                    }
+                    else if (ch == '8' || ch == '9')
+                    {
+                        pCrtCh++;
+                        state = 7;
+                    }
+                    else if(ch == 'x')
+                    {
+                        pCrtCh++;
+                        state = 11;
+                    }
+                    else if (ch == '.')
+                    {
+                        pCrtCh++;
+                        state = 17;
+                    }
+                    else if(ch == 'e' || ch == 'E')
+                    {
+                        pCrtCh++;
+                        state = 19;
+                    }
+                    else
+                    {
+                        state = 8;
+                    }
+                    break;
+
+                case 10:
+                    if(ch >= '0' && ch <= '7')
+                    {
+                        pCrtCh++;
+                        state = 10;
+                    }
+                    else if (ch == '8' || ch == '9')
+                    {
+                        pCrtCh++;
+                        state = 7;
+                    }
+                    else if (ch == '.')
+                    {
+                        pCrtCh++;
+                        state = 17;
+                    }
+                    else if(ch == 'e' || ch == 'E')
+                    {
+                        pCrtCh++;
+                        state = 19;
+                    }
+                    else
+                    {
+                        state = 8;
+                    }
+                    break;
+
+                case 11:
+                    if(isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
+                    {
+                        pCrtCh++;
+                        state = 11;
+                    }
+                    else
+                    {
+                        state = 8;  //this allows '0x' to be considered valid
+                    }
+                    break;
+
+                case 13:
+                    if(ch == '*')
+                    {
+                        pCrtCh++;
+                        state = 14;
+                    }
+                    else
+                    {
+                        cout<<"Found / without succeding *\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 14:
+                    if(ch == '*')
+                    {
+                        pCrtCh++;
+                        state = 15;
+                    }
+                    else
+                    {
+                        pCrtCh++;
+                        state = 14;
+                    }
+                    break;
+
+                case 15:
+                    if(ch == '*')
+                    {
+                        pCrtCh++;
+                        state = 15;
+                    }
+                    else if (ch == '/')
+                    {
+                        pCrtCh++;
+                        state = 16;
+                    }
+                    else
+                    {
+                        state = 14;
+                    }
+                    break;
+
+                case 16:
+                    temp.code = COMMENT;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    return 0;
+
+                case 17:
+                    if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 18;
+                    }
+                    else
+                    {
+                        cout<<"invalid real const!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 18:
+                    if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 18;
+                    }
+                    else if(ch == 'e' || ch == 'E')
+                    {
+                        pCrtCh++;
+                        state = 19;
+                    }
+                    else
+                    {
+                        //we have CT_REAL
+                        state = 22;
+                    }
+                    break;
+
+                case 19:
+                    if(ch == '+' || ch == '-')
+                    {
+                        pCrtCh++;
+                        state = 20;
+                    }
+                    else if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 21;
+                    }
+                    else
+                    {
+                        cout<<"invalid real exponential!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 20:
+                    if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 21;
+                    }
+                    else
+                    {
+                        cout<<"invalid real const!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 21:
+                    if(isdigit(ch))
+                    {
+                        pCrtCh++;
+                        state = 21;
+                    }
+                    else
+                    {
+                        state = 22;
+                    }
+                    break;
+
+                case 22:
+                    temp.code = CT_REAL;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    return 0;
+            }
         }
     }
-}
 
-void print_tokens()
-{
-    if (head == NULL)
+public:
+    LexicalAnalyzer (char * source)
     {
-        cout<<"List empty!\n";
+        this->src = source;
     }
 
-    else
+    int getStatus()
     {
-        for(Token * c = head; c != NULL; c = c->next)
+        return status;
+    }
+
+    int run()
+    {
+        if(status != 0)
+            return status;
+        //initialize current char from the source beginning
+        pCrtCh = src;
+
+        while(status == 0)
         {
-            cout<<"("<<c->code<<", "<<c->text<<") ";
+            //cout<<"Calling getNextToken()\n";
+            getNextToken();
+        }
+
+        return status;
+    }
+
+    void showTokens()
+    {
+        cout<<"[DEBUG] Dumping tokens list\n";
+        if (status == 0)
+        {
+            cout<<"Lexical analysis hasn't been run!\n";
+            return;
+        }
+
+        for (Token & t : tokenList)
+        {
+            cout<<"("<<t.code<<", "<<t.text<<") ";
         }
     }
-}
+};
 
 int main(int argc, char * argv[])
 {
@@ -376,20 +555,13 @@ int main(int argc, char * argv[])
 
     fseek(src, 0, SEEK_SET);
 
-    char * filedata = (char *)malloc(filesize + 1);
+    char * filedata = new char [filesize + 1];
     fread(filedata, 1, filesize, src);
     filedata[filesize] = 0;
 
-    int start = 0;
-    while (start < filesize)
-    {
-        cout<<"CALL\n";
-        int r = getNextToken(filedata + start);
-        if (r == 0)
-            break;
-        start += r;
-    }
-
-    print_tokens();
+    LexicalAnalyzer L(filedata);
+    L.run();
+    L.showTokens();
+    cout<<"[+] Lexical analysis over!\n";
     return 0;
 }
