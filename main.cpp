@@ -7,7 +7,7 @@
 
 using namespace std;
 
-enum{ID, END, BREAK, CHAR, DOUBLE, ELSE, FOR, IF, INT, RETURN, STRUCT, VOID, WHILE, EQUAL, CT_INT, ASSIGN, SEMICOLON, COMMENT, CT_REAL}; // tokens codes TBA
+enum{ID, END, BREAK, CHAR, DOUBLE, ELSE, FOR, IF, INT, RETURN, STRUCT, VOID, WHILE, EQUAL, CT_INT, ASSIGN, SEMICOLON, COMMENT, CT_REAL, CT_CHAR, CT_STRING}; // tokens codes TBA
 
 struct Token
 {
@@ -150,6 +150,16 @@ class LexicalAnalyzer
                         pCrtCh++;
                     }
 
+                    else if(ch == '\'')
+                    {
+                        pCrtCh++;
+                        state = 23; //a character
+                    }
+                    else if(ch == '\"')
+                    {
+                        pCrtCh++;
+                        state = 27; //a string
+                    }
                     else if(ch == 0)
                     { // the end of the input string
                         cout<<"END\n";
@@ -483,6 +493,119 @@ class LexicalAnalyzer
 
                 case 22:
                     temp.code = CT_REAL;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    return 0;
+
+                //CT_CHAR
+                case 23:
+                    if(ch == '\\')
+                    {
+                        //escaped character
+                        pCrtCh++;
+                        state = 24;
+                    }
+
+                    else if(ch != '\'')
+                    {
+                        pCrtCh++;
+                        state = 25;
+                    }
+
+                    else
+                    {
+                        cout<<"empty CT_CHAR!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 24:
+                    if(strchr("abfnrtv'?\"\\0", ch))
+                    {
+                        pCrtCh++;
+                        state = 25;
+                    }
+                    else
+                    {
+                        cout<<"invalid escaped character!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 25:
+                    if(ch == '\'')
+                    {
+                        pCrtCh++;
+                        state = 26;
+                    }
+                    else
+                    {
+                        cout<<"CT_CHAR not properly ended!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 26:
+                    temp.code = CT_CHAR;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    return 0;
+
+
+                //CT_STRING
+                case 27:
+                    if(ch == '\\')
+                    {
+                        //escaped character
+                        pCrtCh++;
+                        state = 28;
+                    }
+                    else if(ch == '\"')
+                    {
+                        //empty string
+                        pCrtCh++;
+                        state = 30;
+                    }
+
+                    else
+                    {
+                        pCrtCh++;
+                        state = 29;
+                    }
+                    break;
+
+                case 28:
+                    if(strchr("abfnrtv'?\"\\0", ch))
+                    {
+                        pCrtCh++;
+                        state = 29;
+                    }
+                    else
+                    {
+                        cout<<"CT_STRING invalid escaped character!\n";
+                        status = 2;
+                        return 2;
+                    }
+                    break;
+
+                case 29:
+                    if(ch == '\"')
+                    {
+                        pCrtCh++;
+                        state = 30;
+                    }
+                    else
+                    {
+                        pCrtCh++;
+                        state = 27;
+                    }
+                    break;
+
+                case 30:
+                    temp.code = CT_STRING;
                     temp.text = createString(pStartCh, pCrtCh);
                     addTk(temp);
                     return 0;
