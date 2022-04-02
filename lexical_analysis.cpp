@@ -463,7 +463,7 @@ int LexicalAnalyzer::getNextToken()
                 case 16:
                     temp.code = COMMENT;
                     temp.text = createString(pStartCh, pCrtCh);
-                    addTk(temp);
+                    //addTk(temp);
                     return 0;
 
                 case 17:
@@ -704,7 +704,7 @@ int LexicalAnalyzer::getNextToken()
                 case 35:
                     temp.code = LINECOMMENT;
                     temp.text = createString(pStartCh, pCrtCh);
-                    addTk(temp);
+                    //addTk(temp);
                     cout<<"// ";
                     return 0;
 

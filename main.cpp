@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "lexical_analysis.h"
-
+#include "semantic_analysis.h"
 using namespace std;
 
 int main(int argc, char * argv[])
@@ -41,5 +41,8 @@ int main(int argc, char * argv[])
     L.showTokens();
     cout<<"[+] Lexical analysis over!\n";
     cout<<"Filesize: "<<filesize<<"\n";
+
+    SemanticAnalyzer S(L.getTokenList());
+    S.run();
     return 0;
 }
