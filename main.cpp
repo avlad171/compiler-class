@@ -7,7 +7,9 @@
 
 using namespace std;
 
-enum{ID, END, BREAK, CHAR, DOUBLE, ELSE, FOR, IF, INT, RETURN, STRUCT, VOID, WHILE, EQUAL, CT_INT, ASSIGN, SEMICOLON, COMMENT, CT_REAL, CT_CHAR, CT_STRING}; // tokens codes TBA
+enum{ID, END, BREAK, CHAR, DOUBLE, ELSE, FOR, INT, IF, RETURN, STRUCT, VOID, WHILE, EQUAL, CT_INT, ASSIGN, SEMICOLON,
+COMMENT, CT_REAL, CT_CHAR, CT_STRING, COMMA, LPAR, RPAR, LBRACKET, RBRACKET, LACC, RACC, ADD, SUB, MUL, DIV, NOT, AND, OR, DOT,
+NOTEQ, LESS, LESSEQ, GREATER, GREATEREQ, LINECOMMENT}; // tokens codes TBA
 
 struct Token
 {
@@ -107,17 +109,122 @@ class LexicalAnalyzer
             switch(state)
             {
                 case 0: // transitions test for state 0
-                    if(isalpha(ch) || ch == '_')
+                    if(ch == 0)
+                    { // the end of the input string
+                        cout<<"END\n";
+                        addTk(END);
+                        status = 1;
+                        return 1;
+                    }
+                    else if(isalpha(ch) || ch == '_')
                     {
                         pStartCh = pCrtCh; // memorizes the beginning of the ID
                         pCrtCh++; // consume the character
                         state = 1; // set the new state
                     }
+                    //delimiters
+                    else if(strchr(",;()[]{}", ch))
+                    {
+                        pStartCh = pCrtCh; // memorizes the beginning of the ID
+                        pCrtCh++; // consume the character
+                        state = 0; // set the new state
 
+                        switch(ch)
+                        {
+                        case ',':
+                            code = COMMA;
+                            break;
+                        case ';':
+                            code = SEMICOLON;
+                            break;
+                        case '(':
+                            code = LPAR;
+                            break;
+                        case ')':
+                            code = RPAR;
+                            break;
+                        case '[':
+                            code = LBRACKET;
+                            break;
+                        case ']':
+                            code = RBRACKET;
+                            break;
+                        case '{':
+                            code = LACC;
+                            break;
+                        case '}':
+                            code = RACC;
+                            break;
+                        }
+
+                        temp.code = code;
+                        temp.text = createString(pStartCh, pCrtCh);
+                        addTk(temp);
+                        return 0;
+                    }
+                    //operators
+                    else if(strchr("+-*.", ch))
+                    {
+                        pStartCh = pCrtCh; // memorizes the beginning of the ID
+                        pCrtCh++; // consume the character
+                        state = 0; // set the new state
+
+                        switch(ch)
+                        {
+                        case '+':
+                            code = ADD;
+                            break;
+                        case '-':
+                            code = SUB;
+                            break;
+                        case '*':
+                            code = MUL;
+                            break;
+                        case '.':
+                            code = DOT;
+                            break;
+                        }
+
+                        temp.code = code;
+                        temp.text = createString(pStartCh, pCrtCh);
+                        addTk(temp);
+                    }
+
+                    else if(ch == '&')
+                    {
+                        pCrtCh++;
+                        state = 36;
+                    }
+
+                    else if(ch == '|')
+                    {
+                        pCrtCh++;
+                        state = 37;
+                    }
+
+                    else if(ch == '!')
+                    {
+                        pCrtCh++;
+                        state = 38;
+                    }
+
+                    //comparison
                     else if(ch == '=')
                     {
                         pCrtCh++;
                         state = 3;
+                    }
+
+                    else if(ch == '<')
+                    {
+                        pCrtCh++;
+                        state = 31;
+                    }
+
+                    else if(ch == '>')
+                    {
+                        pCrtCh++;
+                        state = 39;
                     }
 
                     else if(ch >= '1' && ch <= '9')
@@ -141,13 +248,14 @@ class LexicalAnalyzer
                     else if(ch == ' ' || ch == '\r' || ch == '\t')
                     {
                         pCrtCh++; // consume the character and remains in state 0
-                        prec_spaces++;
+                        pStartCh = pCrtCh;
                     }
 
                     else if(ch == '\n')
                     { // handled separately in order to update the current line
                         line++;
                         pCrtCh++;
+                        pStartCh = pCrtCh;
                     }
 
                     else if(ch == '\'')
@@ -159,13 +267,6 @@ class LexicalAnalyzer
                     {
                         pCrtCh++;
                         state = 27; //a string
-                    }
-                    else if(ch == 0)
-                    { // the end of the input string
-                        cout<<"END\n";
-                        addTk(END);
-                        status = 1;
-                        return 1;
                     }
 
                     else
@@ -290,6 +391,8 @@ class LexicalAnalyzer
                 case 8:
                     temp.code = CT_INT;
                     temp.text = createString(pStartCh, pCrtCh);
+                    temp.i = strtol(temp.text, NULL, 0);
+                    //cout<<"[DEBUG] EXTRACTED CT_INT VALUE: "<<temp.i<<"\n";
                     addTk(temp);
                     return 0;
 
@@ -365,16 +468,23 @@ class LexicalAnalyzer
                     break;
 
                 case 13:
-                    if(ch == '*')
+                    if(ch == '*')   //multi line comment
                     {
                         pCrtCh++;
                         state = 14;
                     }
-                    else
+                    else if (ch == '/') //single line comment
                     {
-                        cout<<"Found / without succeding *\n";
-                        status = 2;
-                        return 2;
+                        pCrtCh++;
+                        state = 34;
+                    }
+                    else    //division
+                    {
+                        temp.code = DIV;
+                        temp.text = createString(pStartCh, pCrtCh);
+                        addTk(temp);
+                        cout<<"/ ";
+                        return 0;
                     }
                     break;
 
@@ -494,6 +604,8 @@ class LexicalAnalyzer
                 case 22:
                     temp.code = CT_REAL;
                     temp.text = createString(pStartCh, pCrtCh);
+                    temp.r = atof(temp.text);
+                    //cout<<"[DEBUG] EXTRACTED CT_REAL VALUE: "<<temp.r<<"\n";
                     addTk(temp);
                     return 0;
 
@@ -609,6 +721,126 @@ class LexicalAnalyzer
                     temp.text = createString(pStartCh, pCrtCh);
                     addTk(temp);
                     return 0;
+
+                case 31:
+                    if(ch == '=')
+                    {
+                        pCrtCh++;
+                        state = 32;
+                    }
+                    else state = 33;
+                    break;
+
+                case 32:
+                    //<=
+                    temp.code = LESSEQ;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"<= ";
+                    return 0;
+
+                case 33:
+                    //<
+                    temp.code = LESS;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"< ";
+                    return 0;
+
+                case 34:
+                    if(ch != '\n' && ch != '\r' && ch != '\0')
+                    {
+                        pCrtCh++;
+                        state = 34;
+                    }
+                    else
+                    {
+                        state = 35;
+                    }
+                    break;
+
+                case 35:
+                    temp.code = LINECOMMENT;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"// ";
+                    return 0;
+
+                case 36:
+                    if(ch == '&')
+                    {
+                        pCrtCh++;
+                        temp.code = AND;
+                        temp.text = createString(pStartCh, pCrtCh);
+                        addTk(temp);
+                        cout<<"&& ";
+                        return 0;
+                    }
+                    else
+                    {
+                        cout<<"Bitwise and not done yet!\n";
+                        status = 2;
+                        return 2;
+                    }
+
+                case 37:
+                    if(ch == '|')
+                    {
+                        pCrtCh++;
+                        temp.code = OR;
+                        temp.text = createString(pStartCh, pCrtCh);
+                        addTk(temp);
+                        cout<<"|| ";
+                        return 0;
+                    }
+                    else
+                    {
+                        cout<<"Bitwise or not done yet!\n";
+                        status = 2;
+                        return 2;
+                    }
+
+                case 38:
+                    if(ch == '=')
+                    {
+                        pCrtCh++;
+                        temp.code = NOT;
+                        temp.text = createString(pStartCh, pCrtCh);
+                        addTk(temp);
+                        cout<<"|| ";
+                        return 0;
+                    }
+                    else
+                    {
+                        cout<<"Negation not done yet!\n";
+                        status = 2;
+                        return 2;
+                    }
+
+                case 39:
+                    if(ch == '=')
+                    {
+                        pCrtCh++;
+                        state = 40;
+                    }
+                    else state = 41;
+                    break;
+
+                case 40:
+                    temp.code = GREATEREQ;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"<= ";
+                    return 0;
+
+                case 41:
+                    //<
+                    temp.code = GREATER;
+                    temp.text = createString(pStartCh, pCrtCh);
+                    addTk(temp);
+                    cout<<"< ";
+                    return 0;
+
             }
         }
     }
@@ -653,6 +885,8 @@ public:
         {
             cout<<"("<<t.code<<", "<<t.text<<") ";
         }
+        cout<<"\n";
+        cout<<"Cursor: "<<pCrtCh - src<<"\n";
     }
 };
 
@@ -678,13 +912,15 @@ int main(int argc, char * argv[])
 
     fseek(src, 0, SEEK_SET);
 
-    char * filedata = new char [filesize + 1];
+    char * filedata = new char [filesize + 2];
     fread(filedata, 1, filesize, src);
     filedata[filesize] = 0;
+    filedata[filesize + 1] = 0;
 
     LexicalAnalyzer L(filedata);
     L.run();
     L.showTokens();
     cout<<"[+] Lexical analysis over!\n";
+    cout<<"Filesize: "<<filesize<<"\n";
     return 0;
 }
