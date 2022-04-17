@@ -38,7 +38,7 @@ int main(int argc, char * argv[])
 
     LexicalAnalyzer L(filedata);
     L.run();
-    L.showTokens();
+    L.showTokens2();
     cout<<"[+] Lexical analysis over!\n";
     cout<<"Filesize: "<<filesize<<"\n";
 
