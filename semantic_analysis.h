@@ -12,6 +12,13 @@ class SemanticAnalyzer
 
     //rules
     int consume(int code);
+    int ruleWhile();
+    int expr();
+    int stm();
+
+public:
+    SemanticAnalyzer(std::vector<Token> t);
+    int run();
     int ruleUnit();
     int ruleDeclStruct();
     int ruleDeclVar();
@@ -23,35 +30,17 @@ class SemanticAnalyzer
     int ruleStm();
     int ruleStmCompound();
     int ruleIf();
-    int ruleWhile();
     int ruleFor();
     int ruleBreak();
     int ruleReturn();
     int ruleExpr();
     int ruleExprAssign();
     int ruleExprOr();
-    int ruleExprOr1();
     int ruleExprAnd();
-    int ruleExprAnd1();
     int ruleExprEq();
-    int ruleExprEq1();
     int ruleExprRel();
-    int ruleExprRel1();
     int ruleExprAdd();
-    int ruleExprAdd1();
     int ruleExprMul();
-    int ruleExprMul1();
     int ruleExprCast();
-    int ruleExprUnary();
-    int ruleExprPostfix();
-    int ruleExprPostfix1();
-    int ruleExprPrimary();
-    int ruleExprPrimaryInner1();
-    int ruleExprPrimaryInner2();
-
-public:
-    SemanticAnalyzer(std::vector<Token> t);
-    int run();
-
 };
 #endif // SEMANTIC_ANALYSIS_H_INCLUDED

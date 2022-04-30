@@ -619,7 +619,7 @@ int LexicalAnalyzer::getNextToken()
                     }
                     else if(ch == '\"')
                     {
-                        //end
+                        //empty string
                         pCrtCh++;
                         state = 30;
                     }
@@ -627,7 +627,7 @@ int LexicalAnalyzer::getNextToken()
                     else
                     {
                         pCrtCh++;
-                        state = 27;
+                        state = 29;
                     }
                     break;
 
@@ -635,7 +635,7 @@ int LexicalAnalyzer::getNextToken()
                     if(strchr("abfnrtv'?\"\\0", ch))
                     {
                         pCrtCh++;
-                        state = 27;
+                        state = 29;
                     }
                     else
                     {
@@ -821,21 +821,6 @@ void LexicalAnalyzer::showTokens()
     cout<<"Cursor: "<<pCrtCh - src<<"\n";
 }
 
-void LexicalAnalyzer::showTokens2()
-{
-    cout<<"[DEBUG] Dumping tokens list v2\n";
-    if (status == 0)
-    {
-        cout<<"Lexical analysis hasn't been run!\n";
-        return;
-    }
-
-    for (int i = 0; i < tokenList.size(); ++i)
-    {
-        cout<<i<<" - ("<<tokenList[i].code<<", "<<tokenList[i].text<<")\n";
-    }
-    cout<<"\n";
-}
 vector<Token> LexicalAnalyzer::getTokenList()
 {
     return tokenList;

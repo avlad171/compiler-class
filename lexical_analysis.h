@@ -78,7 +78,6 @@ public:
 
     int run();
     void showTokens();
-    void showTokens2();
     std::vector<Token> getTokenList();
 };
 
