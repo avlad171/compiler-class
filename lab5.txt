@@ -1,0 +1,11 @@
+lab 5:
+make while run
+
+phase 1: CT_INT, implement return and semicolon, most trivial terms
+
+again
+parse the list of tokens
+make the while rule work: WHILE LPAR expr RPAR stm
+
+expr: only CT_INT
+stm: retrun expr? SEMICOLON
