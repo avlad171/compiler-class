@@ -72,6 +72,7 @@ int SemanticAnalyzer::addVar(const string& name, TypeBase type)
 
 int SemanticAnalyzer::ruleDeclStruct()
 {
+    cout<<"DeclStruct\n";
 	if(!consume(STRUCT))
 		return 0;
 
@@ -126,7 +127,7 @@ int SemanticAnalyzer::ruleDeclStruct()
 
 int SemanticAnalyzer::ruleDeclVar()
 {
-    //cout<<"Declvar!\n";
+    cout<<"Declvar!\n";
     int startTk = curTk;
     TypeBase vartype = ruleTypeBase();
 	if(vartype.type == TB_NONE)
@@ -172,7 +173,6 @@ int SemanticAnalyzer::ruleDeclVar()
 TypeBase SemanticAnalyzer::ruleTypeBase()
 {
     TypeBase ret;
-
 
     if(consume(INT))
     {
@@ -262,6 +262,7 @@ int SemanticAnalyzer::ruleDeclFunc()
     TypeBase ret;
 	int startTk = curTk;
     ret = ruleTypeBase();
+    cout<<ret.type<<"\n";
 	if(ret.type != TB_NONE)
 	{
 	    cout<<"Function returning non-void!\n";
@@ -283,6 +284,7 @@ int SemanticAnalyzer::ruleDeclFunc()
 
 	else
 	{
+        cout<<"func failed!\n";
 		curTk = startTk;
         return 0;
     }
@@ -293,6 +295,7 @@ int SemanticAnalyzer::ruleDeclFunc()
         return 0;
     }
     string func_name = tokenList[curTk-1].text;
+    cout<<func_name<<"\n";
 
 	if(!consume(LPAR))
 	{

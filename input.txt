@@ -13,8 +13,9 @@ void m(int p, double q) {
 	}
 }
 
+/*
 while(2)
 	return;
 
 while(3)
-	return 0;
+	return 0;*/
