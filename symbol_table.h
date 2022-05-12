@@ -72,6 +72,7 @@ Symbol *addSymbol(Symbols *symbols,const char *name,int cls)
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 enum {TB_NONE = 0, TB_INT, TB_DOUBLE, TB_CHAR, TB_STRUCT, TB_VOID};
 enum {CLS_VAR, CLS_FUNC, CLS_EXTFUNC, CLS_STRUCT};
@@ -98,6 +99,8 @@ struct Symbol
         this->depth = depth;
         this->struct_type = struct_type;
         this->nElements = nElements;
+
+        std::cout<<"Creating symbol with name: "<<this->name<<"\n";
     }
 
     ~Symbol()
@@ -126,4 +129,5 @@ Symbol* findSymbol(Symbols & symbols, std::string name);
 
 int deleteSymbolsAfter(Symbols & symbols, Symbol * s);
 
+void printSymbolTable(Symbols & symbols);
 #endif // SYMBOL_TABLE_H_INCLUDED

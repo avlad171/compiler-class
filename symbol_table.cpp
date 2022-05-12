@@ -4,6 +4,7 @@ using namespace std;
 Symbol * addSymbol(Symbols & symbols, string name, int cls, int mem, int type, int depth, Symbol * struct_type, int nElements)
 {
     Symbol * s = new Symbol(name, cls, mem, type, depth, struct_type, nElements);
+    symbols.push_back(s);
     return s;
 }
 
@@ -37,15 +38,28 @@ int deleteSymbolsAfter(Symbols & symbols, Symbol * s)
     {
         if (*it == s)
         {
+            it++;   //skip current elem
             //it is now the end of the symbol table
-            for (auto it2 = it++; it2 != symbols.end(); ++it2)
+            for (auto it2 = it; it2 != symbols.end(); ++it2)
             {
+                cout<<"Deleting "<<(*it2)->name<<"\n";
                 delete (*it2);
             }
 
-            symbols.erase(it++, symbols.end());
+            symbols.erase(it, symbols.end());
+            break;
         }
     }
 
     return 1;
+}
+
+void printSymbolTable(Symbols & symbols)
+{
+    cout<<symbols.size()<<": ";
+    for (auto it = symbols.begin(); it != symbols.end(); ++it)
+    {
+        cout<<"("<<(*it)->name<<", "<<(*it)->type<<", "<<(*it)->struct_type<<") ";
+    }
+    cout<<endl;
 }

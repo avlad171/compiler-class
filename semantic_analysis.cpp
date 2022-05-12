@@ -83,12 +83,7 @@ int SemanticAnalyzer::ruleDeclStruct()
 	}
     string struct_name = tokenList[curTk-1].text;
     cout<<"Found struct "<<struct_name<<"\n";
-    /*{
-        if(findSymbol(&symbols,tkName->text))
-            tkerr(crtTk,"symbol redefinition: %s",tkName->text);
-        crtStruct=addSymbol(&symbols,tkName->text,CLS_STRUCT);
-        initSymbols(&crtStruct->members);
-    }*/
+
     if(findSymbol(symbols, struct_name))
     {
         cout<<"Error: symbol redefinition ("<<struct_name<<")\n";
@@ -120,8 +115,12 @@ int SemanticAnalyzer::ruleDeclStruct()
 		exit(0);
 	}
 
+    cout<<"Found struct at token "<<curTk<<"\n";
+    cout<<"Symbol table at the end of struct "<<struct_name<<": ";
+    printSymbolTable(symbols);
+    cout<<"Internal struct symbol table: ";
+    printSymbolTable(crtStruct->args);
     crtStruct = nullptr;
-	cout<<"Found struct at token "<<curTk<<"\n";
 	return 1;
 }
 
@@ -278,7 +277,7 @@ int SemanticAnalyzer::ruleDeclFunc()
 
 	else if(consume(VOID))
 	{
-        cout<<"Void \n";
+        cout<<"Void function\n";
         ret.type = TB_VOID;
 	}
 
@@ -330,12 +329,17 @@ int SemanticAnalyzer::ruleDeclFunc()
         return 0;
     }
     crtDepth--;
-    cout<<"Decreasing depth: "<<crtDepth<<"\n";
+    cout<<"Decreasing depth (func): "<<crtDepth<<"\n";
 	if(!ruleStmCompound())
 	{
 		curTk = startTk;
         return 0;
     }
+    cout<<"Symbol table at the end of function "<<func_name<<": ";
+    printSymbolTable(symbols);
+    cout<<"Internal function symbol table: ";
+    printSymbolTable(crtFunc->args);
+
     deleteSymbolsAfter(symbols, crtFunc);
     crtFunc = nullptr;
 
@@ -389,7 +393,12 @@ int SemanticAnalyzer::ruleStm()
 int SemanticAnalyzer::ruleStmCompound()
 {
     cout<<"Matching statement compound at "<<curTk<<"\n";
-    Symbol * start = symbols.back();
+    Symbol * start = nullptr;
+    for (auto it = symbols.begin(); it != symbols.end(); ++it)
+        start = *it;
+
+    cout<<"Found last symbol in table!\n";
+
 	if(!consume(LACC))
 	{
 	    cout<<"Statement compound failed!\n";
@@ -414,8 +423,10 @@ int SemanticAnalyzer::ruleStmCompound()
 		exit(0);
     }
     crtDepth--;
-    cout<<"Decreasing depth: "<<crtDepth<<"\n";
+    cout<<"Decreasing depth (stm compound): "<<crtDepth<<"\n";
+    cout<<"Deleting symbols after "<<start->name<<"\n";
     deleteSymbolsAfter(symbols, start);
+    cout<<"Symbols deleted\n";
     return 1;
 }
 
@@ -978,6 +989,9 @@ int SemanticAnalyzer::ruleUnit()
 		if(consume(END))
         {
             cout<<"Found END at token "<<curTk<<"\n";
+
+            cout<<"Final symbol table: ";
+            printSymbolTable(symbols);
 			return 1;
         }
 	}
