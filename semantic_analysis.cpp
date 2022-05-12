@@ -1,5 +1,4 @@
 #include "semantic_analysis.h"
-#include <stdlib.h>
 #include <iostream>
 
 using namespace std;
@@ -9,6 +8,9 @@ SemanticAnalyzer::SemanticAnalyzer(vector<Token> t)
     this->tokenList = t;
     //this->startTk = 0;
     this->curTk = 0;
+    this->crtDepth = 0;
+    this->crtStruct = nullptr;  //we are not in a struct in the beginning
+    this->crtFunc = nullptr;    //we are not in a func in the beginning
 }
 
 int SemanticAnalyzer::consume(int code)
@@ -22,7 +24,7 @@ int SemanticAnalyzer::consume(int code)
     return 0;
 }
 
-int SemanticAnalyzer::expr()
+/*int SemanticAnalyzer::expr()
 {
     int startTk = curTk;
     if(consume(CT_INT))
@@ -32,18 +34,66 @@ int SemanticAnalyzer::expr()
 
     curTk = startTk;
     return 0;
+}*/
+
+int SemanticAnalyzer::addVar(const string& name, TypeBase type)
+{
+    Symbol *s;
+    if(crtStruct)
+    {
+        if(findSymbol(crtStruct->args, name))
+        {
+            cout << "symbol redefinition: " << name << "\n";
+            exit(0);
+        }
+        s = addSymbol(crtStruct->args, name, CLS_VAR);
+    }
+    else if(crtFunc)
+    {
+        s = findSymbol(symbols, name);
+        if(s && s->depth == crtDepth)
+            cout<<"symbol redefinition: "<<name;
+        s = addSymbol(symbols, name, CLS_VAR);
+        s->mem = MEM_LOCAL;
+    }
+    else
+    {
+        if(findSymbol(symbols, name))
+            cout<<"symbol redefinition: "<<name;
+        s = addSymbol(symbols, name, CLS_VAR);
+        s->mem = MEM_GLOBAL;
+    }
+    s->type = type.type;
+    s->struct_type = type.struct_type;
+    s->nElements = type.nElements;
+
+    return 1;
 }
 
 int SemanticAnalyzer::ruleDeclStruct()
 {
 	if(!consume(STRUCT))
 		return 0;
-    //cout<<"STRUCT!\n";
+
 	if(!consume(ID))
 	{
         cout<<"Missing ID after struct!\n";
 		exit(0);
 	}
+    string struct_name = tokenList[curTk-1].text;
+    cout<<"Found struct "<<struct_name<<"\n";
+    /*{
+        if(findSymbol(&symbols,tkName->text))
+            tkerr(crtTk,"symbol redefinition: %s",tkName->text);
+        crtStruct=addSymbol(&symbols,tkName->text,CLS_STRUCT);
+        initSymbols(&crtStruct->members);
+    }*/
+    if(findSymbol(symbols, struct_name))
+    {
+        cout<<"Error: symbol redefinition ("<<struct_name<<")\n";
+        exit(0);
+    }
+    crtStruct = addSymbol(symbols, struct_name, CLS_STRUCT, crtDepth);
 
 	if(!consume(LACC))
 	{
@@ -69,6 +119,7 @@ int SemanticAnalyzer::ruleDeclStruct()
 		exit(0);
 	}
 
+    crtStruct = nullptr;
 	cout<<"Found struct at token "<<curTk<<"\n";
 	return 1;
 }
@@ -76,17 +127,20 @@ int SemanticAnalyzer::ruleDeclStruct()
 int SemanticAnalyzer::ruleDeclVar()
 {
     //cout<<"Declvar!\n";
-	if(!ruleTypeBase())
+    int startTk = curTk;
+    TypeBase vartype = ruleTypeBase();
+	if(vartype.type == TB_NONE)
 		return 0;
 
-
+    string varname;
 	if(!consume(ID))
 	{
 	    cout<<"Missing ID after type base!\n";
 		exit(0);
 	}
-
-	ruleArrayDecl();
+    varname = tokenList[curTk-1].text;
+	vartype.nElements = ruleArrayDecl();
+    addVar(varname, vartype);
 
 	while (1)
 	{
@@ -97,26 +151,43 @@ int SemanticAnalyzer::ruleDeclVar()
 
 		if(!consume(ID))
 		{
-			break;
+			cout<<"Missing identifier after comma in variable declaration!\n";
+			exit(0);
 		}
-
-		ruleArrayDecl();
+        varname = tokenList[curTk-1].text;
+		vartype.nElements = ruleArrayDecl();
+        addVar(varname, vartype);
 	}
 
 	if(!consume(SEMICOLON))
 	{
-		return 0;
+	    curTk = startTk;
+	    return 0;
 	}
+
 	cout<<"Found variable at "<<curTk<<"\n";
 	return 1;
 }
 
-int SemanticAnalyzer::ruleTypeBase()
+TypeBase SemanticAnalyzer::ruleTypeBase()
 {
-	if(consume(INT) || consume(DOUBLE) || consume(CHAR))
+    TypeBase ret;
+
+
+    if(consume(INT))
     {
-        cout<<"Declvar!\n";
-        return 1;
+        ret.type = TB_INT;
+        return ret;
+    }
+    else if (consume(DOUBLE))
+    {
+        ret.type = TB_DOUBLE;
+        return ret;
+    }
+    else if(consume(CHAR))
+    {
+        ret.type = TB_CHAR;
+        return ret;
     }
 
     else if (consume(STRUCT))
@@ -128,12 +199,26 @@ int SemanticAnalyzer::ruleTypeBase()
         }
         else
         {
-            cout<<"Decl struct\n";
-            return 1;
+            string struct_name = tokenList[curTk-1].text;
+            Symbol * s = findSymbol(symbols, struct_name);
+            if(s == nullptr)
+            {
+                cout<<"undefined struct: "<<struct_name;
+                exit(0);
+            }
+
+            if(s->cls != CLS_STRUCT)
+            {
+                cout<<struct_name<<"is not a struct";
+                exit(0);
+            }
+            ret.type = TB_STRUCT;
+            ret.struct_type = s;
+            return ret;
         }
     }
 
-	return 0;
+	return ret;
 }
 
 int SemanticAnalyzer::ruleArrayDecl()
@@ -141,46 +226,59 @@ int SemanticAnalyzer::ruleArrayDecl()
 	if(!consume(LBRACKET))
     {
         cout<<"No array at "<<curTk<<"\n";
-        return 0;
+        return -1;
     }
 
-	expr();
+	ruleExpr();
 
 	if(!consume(RBRACKET))
     {
-        return 0;
+        cout<<"Missing right bracket after array declaration!\n";
+        exit(0);
     }
 
     cout<<"ArrayDecl!\n";
-	return 1;
+	return 0;  //no arrays ATM
 }
 
-int SemanticAnalyzer::ruleTypeName()
+TypeBase SemanticAnalyzer::ruleTypeName()
 {
+    TypeBase ret;
 	int startTk = curTk;
-	if(!ruleTypeBase())
+    ret = ruleTypeBase();
+	if(ret.type == TB_NONE)
     {
 		curTk = startTk;
-        return 0;
+        return ret;
     }
 
-	ruleArrayDecl();
-	return 1;
+	ret.nElements = ruleArrayDecl();
+	return ret;
 }
 
 int SemanticAnalyzer::ruleDeclFunc()
 {
     cout<<"DeclFunc!\n";
+    TypeBase ret;
 	int startTk = curTk;
-	if(ruleTypeBase())
+    ret = ruleTypeBase();
+	if(ret.type != TB_NONE)
 	{
 	    cout<<"Function returning non-void!\n";
-		consume(MUL);
+		if(consume(MUL))
+        {
+            ret.nElements = 0;
+        }
+        else
+        {
+            ret.nElements = -1;
+        }
 	}
 
 	else if(consume(VOID))
 	{
         cout<<"Void \n";
+        ret.type = TB_VOID;
 	}
 
 	else
@@ -194,12 +292,26 @@ int SemanticAnalyzer::ruleDeclFunc()
 		curTk = startTk;
         return 0;
     }
+    string func_name = tokenList[curTk-1].text;
 
 	if(!consume(LPAR))
 	{
 		curTk = startTk;
         return 0;
     }
+
+    if(findSymbol(symbols, func_name))
+    {
+        cout << "function name redefinition: " << func_name;
+        exit(0);
+    }
+
+    crtFunc = addSymbol(symbols, func_name, CLS_FUNC);
+    crtFunc->type=ret.type;
+    crtFunc->nElements = ret.nElements;
+    crtFunc->struct_type = ret.struct_type;
+    crtDepth++;
+    cout<<"Increasing depth: "<<crtDepth<<"\n";
 
 	//now function arguments
 	ruleFuncArg();
@@ -214,20 +326,25 @@ int SemanticAnalyzer::ruleDeclFunc()
 		curTk = startTk;
         return 0;
     }
-
+    crtDepth--;
+    cout<<"Decreasing depth: "<<crtDepth<<"\n";
 	if(!ruleStmCompound())
 	{
 		curTk = startTk;
         return 0;
     }
+    deleteSymbolsAfter(symbols, crtFunc);
+    crtFunc = nullptr;
 
 	return 1;
 }
 
 int SemanticAnalyzer::ruleFuncArg()
 {
+    TypeBase ret;
 	int startTk = curTk;
-	if(!ruleTypeBase())
+    ret = ruleTypeBase();
+	if(ret.type == TB_NONE)
 	{
 		curTk = startTk;
         return 0;
@@ -235,18 +352,27 @@ int SemanticAnalyzer::ruleFuncArg()
 
 	if(!consume(ID))
 	{
-		curTk = startTk;
-        return 0;
+		cout<<"Missing identifier of function argument!\n";
+		exit(0);
     }
-
-	ruleArrayDecl();
-
+    string arg_name = tokenList[curTk-1].text;
+	ret.nElements = ruleArrayDecl();
+    Symbol * s = addSymbol(symbols, arg_name, CLS_VAR);
+    s->mem = MEM_ARG;
+    s->type = ret.type;
+    s->struct_type = ret.struct_type;
+    s->nElements = ret.nElements;
+    s = addSymbol(crtFunc->args, arg_name, CLS_VAR);
+    s->mem = MEM_ARG;
+    s->type = ret.type;
+    s->struct_type = ret.struct_type;
+    s->nElements = ret.nElements;
 	return 1;
 }
 
 int SemanticAnalyzer::ruleStm()
 {
-    cout<<"Statement!\n";
+    cout<<"Statement at "<<curTk<<"\n";
 	int startTk = curTk;
 	if(ruleStmCompound() || ruleIf() || ruleWhile() || ruleFor() || ruleBreak() || ruleReturn() || (ruleExpr() && consume(SEMICOLON)))
 		return 1;
@@ -259,11 +385,15 @@ int SemanticAnalyzer::ruleStm()
 
 int SemanticAnalyzer::ruleStmCompound()
 {
-    cout<<"STATEMENT COMPOUND!\n";
+    cout<<"Matching statement compound at "<<curTk<<"\n";
+    Symbol * start = symbols.back();
 	if(!consume(LACC))
 	{
+	    cout<<"Statement compound failed!\n";
         return 0;
     }
+    crtDepth++;
+    cout<<"Increasing depth: "<<crtDepth<<"\n";
 
 	while(1)
 	{
@@ -280,14 +410,20 @@ int SemanticAnalyzer::ruleStmCompound()
 		cout<<"No } after stm compound!\n";
 		exit(0);
     }
+    crtDepth--;
+    cout<<"Decreasing depth: "<<crtDepth<<"\n";
+    deleteSymbolsAfter(symbols, start);
     return 1;
 }
 
 int SemanticAnalyzer::ruleIf()
 {
-    cout<<"if0\n";
+    cout<<"Matching IF at "<<curTk<<"\n";
 	if(!consume(IF))
-		return 0;
+    {
+        cout<<"IF failed!\n";
+        return 0;
+    }
 
     cout<<"if1\n";
 	if(!consume(LPAR))
@@ -296,14 +432,14 @@ int SemanticAnalyzer::ruleIf()
         exit(0);
     }
 
-    cout<<"if2\n";
+    cout<<"if2 at "<<curTk<<"\n";
 	if(!ruleExpr())
 	{
-		cout<<"invalid expression after (\n";
+		cout<<"invalid expression after if(\n";
         exit(0);
     }
 
-    cout<<"if3\n";
+    cout<<"if3 at "<<curTk<<"\n";
 	if(!consume(RPAR))
 	{
 		cout<<"missing ) after if\n";
@@ -332,24 +468,31 @@ int SemanticAnalyzer::ruleIf()
 
 int SemanticAnalyzer::ruleWhile()
 {
-    int startTk = curTk;
-    if(!consume(WHILE))
+    cout<<"Matching WHILE at "<<curTk<<"\n";
+	if(!consume(WHILE))
+    {
+        cout<<"WHILE failed!\n";
         return 0;
+    }
+
     if(!consume(LPAR))
     {
         cout<<"missing ( after while\n";
         exit(0);
     }
-    if(!expr())
+
+    if(!ruleExpr())
     {
-        cout<<"invalid expression after (\n";
+        cout<<"invalid expression after while(\n";
         exit(0);
     }
+
     if(!consume(RPAR))
     {
-        cout<<"missing )\n";
+        cout<<"missing ) after while\n";
         exit(0);
     }
+
     if(!ruleStm())
     {
         cout<<"missing while statement\n";
@@ -361,33 +504,37 @@ int SemanticAnalyzer::ruleWhile()
 
 int SemanticAnalyzer::ruleFor()
 {
-    int startTk = curTk;
-    if(!consume(FOR))
+    cout<<"Matching FOR at "<<curTk<<"\n";
+	if(!consume(FOR))
+    {
+        cout<<"FOR failed!\n";
         return 0;
+    }
+
     if(!consume(LPAR))
     {
         cout<<"missing ( after for\n";
         exit(0);
     }
 
-    expr();
+    ruleExpr();
 	if(!consume(SEMICOLON))
 	{
 		cout<<"missing ; after first expression in for\n";
         exit(0);
 	}
 
-	expr();
+	ruleExpr();
 	if(!consume(SEMICOLON))
 	{
 		cout<<"missing ; after second expression in for\n";
         exit(0);
 	}
 
-	expr();
+	ruleExpr();
     if(!consume(RPAR))
     {
-        cout<<"missing ) in for\n";
+        cout<<"missing ) after for\n";
         exit(0);
     }
     if(!ruleStm())
@@ -401,8 +548,12 @@ int SemanticAnalyzer::ruleFor()
 
 int SemanticAnalyzer::ruleBreak()
 {
+	cout<<"Matching BREAK at "<<curTk<<"\n";
 	if(!consume(BREAK))
-		return 0;
+    {
+        cout<<"BERAK failed!\n";
+        return 0;
+    }
 
 	if(!consume(SEMICOLON))
 	{
@@ -415,16 +566,22 @@ int SemanticAnalyzer::ruleBreak()
 
 int SemanticAnalyzer::ruleReturn()
 {
+	cout<<"Matching RETURN at "<<curTk<<"\n";
 	if(!consume(RETURN))
-		return 0;
+    {
+        cout<<"RETURN failed!\n";
+        return 0;
+    }
 
-	expr();
+	ruleExpr();
 
 	if(!consume(SEMICOLON))
 	{
         cout<<"missing ; after return\n";
         exit(0);
     }
+
+    return 1;
 }
 
 int SemanticAnalyzer::ruleExpr()
@@ -434,51 +591,85 @@ int SemanticAnalyzer::ruleExpr()
 
 int SemanticAnalyzer::ruleExprAssign()
 {
+    cout<<"Expr assign\n";
+    int startTk = curTk;
+    if(ruleExprUnary())
+    {
+        if(!consume(ASSIGN))
+        {
+            curTk = startTk;
+        }
+
+        else
+        {
+            if(!ruleExprAssign())
+            {
+                cout<<"Missing expression after =\n";
+                exit(0);
+            }
+
+            return 1;
+        }
+    }
+
 	if(ruleExprOr())
 		return 1;
 
-	//if(!ruleExprUnary())
-	if(!ruleExprCast())
-		return 0;
-
-	if(!consume(ASSIGN))
-	{
-        cout<<"missing = in assignment\n";
-        exit(0);
-    }
-
-	if(ruleExprAssign())
-		return 1;
-
-	else
-	{
-        cout<<"missing expression after assignment\n";
-        exit(0);
-    }
+    else
+        return 0;
 }
 
 int SemanticAnalyzer::ruleExprOr()
 {
-	ruleExprAnd();
+    cout<<"Expr or\n";
+    if(!ruleExprAnd())
+        return 0;
 
+    ruleExprOr1();
+	return 1;
+}
+
+int SemanticAnalyzer::ruleExprOr1()
+{
     if(consume(OR))
     {
-        if(!ruleExprOr())
+        if(!ruleExprAnd())
         {
-            cout<<"Missing expression after OR\n";
+            cout<<"Missing exception after OR\n";
+            exit(0);
+        }
+
+        if(!ruleExprOr1())
+        {
+            cout<<"Missing exception after OR\n";
             exit(0);
         }
     }
-	return 1;
+
+    return 1;
 }
 
 int SemanticAnalyzer::ruleExprAnd()
 {
-	ruleExprEq();
+    cout<<"Expr and\n";
+    if(!ruleExprEq())
+        return 0;
 
-	if(consume(AND))
+    ruleExprAnd1();
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprAnd1()
+{
+    if(consume(AND))
     {
-        if(!ruleExprAnd())
+        if(!ruleExprEq())
+        {
+            cout<<"Missing expression after AND\n";
+            exit(0);
+        }
+
+        if(!ruleExprAnd1())
         {
             cout<<"Missing expression after AND\n";
             exit(0);
@@ -490,11 +681,24 @@ int SemanticAnalyzer::ruleExprAnd()
 
 int SemanticAnalyzer::ruleExprEq()
 {
-    ruleExprRel();
+    cout<<"Expr eq\n";
+    if(!ruleExprRel())
+        return 0;
 
-	if(consume(EQUAL) || consume(NOTEQ))
+    ruleExprEq1();
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprEq1()
+{
+    if(consume(EQUAL) || consume(NOTEQ))
     {
-        if(!ruleExprEq())
+        if(!ruleExprRel())
+        {
+            cout<<"Missing expression after ==\n";
+            exit(0);
+        }
+        if(!ruleExprEq1())
         {
             cout<<"Missing expression after ==\n";
             exit(0);
@@ -506,11 +710,25 @@ int SemanticAnalyzer::ruleExprEq()
 
 int SemanticAnalyzer::ruleExprRel()
 {
-    ruleExprAdd();
+    cout<<"Expr rel\n";
+    if(!ruleExprAdd())
+        return 0;
 
-	if(consume(LESS) || consume(LESSEQ) || consume(GREATER) || consume(GREATEREQ))
+    ruleExprRel1();
+	return 1;
+}
+
+int SemanticAnalyzer::ruleExprRel1()
+{
+    if(consume(LESS) || consume(LESSEQ) || consume(GREATER) || consume(GREATEREQ))
     {
-        if(!ruleExprRel())
+        if(!ruleExprAdd())
+        {
+            cout<<"Missing expression after comparison\n";
+            exit(0);
+        }
+
+        if(!ruleExprRel1())
         {
             cout<<"Missing expression after comparison\n";
             exit(0);
@@ -522,11 +740,25 @@ int SemanticAnalyzer::ruleExprRel()
 
 int SemanticAnalyzer::ruleExprAdd()
 {
-    ruleExprMul();
+    cout<<"Expr add\n";
+    if(!ruleExprMul())
+        return 0;
 
+    ruleExprAdd1();
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprAdd1()
+{
 	if(consume(ADD) || consume(SUB))
     {
-        if(!ruleExprAdd())
+        if(!ruleExprMul())
+        {
+            cout<<"Missing expression after addition\n";
+            exit(0);
+        }
+
+        if(!ruleExprAdd1())
         {
             cout<<"Missing expression after addition\n";
             exit(0);
@@ -538,11 +770,25 @@ int SemanticAnalyzer::ruleExprAdd()
 
 int SemanticAnalyzer::ruleExprMul()
 {
-    ruleExprCast();
+    cout<<"Expr mul\n";
+    if(!ruleExprCast())
+        return 0;
 
-	if(consume(MUL) || consume(DIV))
+    ruleExprMul1();
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprMul1()
+{
+    if(consume(MUL) || consume(DIV))
     {
-        if(!ruleExprMul())
+        if(!ruleExprCast())
+        {
+            cout<<"Missing expression after addition\n";
+            exit(0);
+        }
+
+        if(!ruleExprMul1())
         {
             cout<<"Missing expression after addition\n";
             exit(0);
@@ -554,15 +800,165 @@ int SemanticAnalyzer::ruleExprMul()
 
 int SemanticAnalyzer::ruleExprCast()
 {
-     int startTk = curTk;
-    if(consume(CT_INT))
+    cout<<"Expr cast\n";
+    if(ruleExprUnary())
+        return 1;
+
+    if(!consume(LPAR))
+        return 0;
+
+    if(ruleTypeName().type == TB_NONE)
     {
+        cout<<"Missing type in cast\n";
+        exit(0);
+    }
+
+    if(!consume(RPAR))
+    {
+        cout<<"Missing ) after cast\n";
+        exit(0);
+    }
+
+    if(!ruleExprCast())
+    {
+        cout<<"Missing expression after cast\n";
+        exit(0);
+    }
+
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprUnary()
+{
+    cout<<"Expr unary\n";
+    if(ruleExprPostfix())
+        return 1;
+
+    if(!consume(SUB) || !consume(NOT))
+        return 0;
+
+    if(!ruleExprUnary())
+    {
+        cout<<"Missing unary expression!\n";
+        exit(0);
+    }
+
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprPostfix()
+{
+    cout<<"Expr postfix\n";
+    if(!ruleExprPrimary())
+        return 0;
+
+    ruleExprPostfix1();
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprPostfix1()
+{
+    if(consume(LBRACKET))
+    {
+        if(!ruleExpr())
+        {
+            cout<<"Missing expression after {\n";
+            exit(0);
+        }
+
+        if(!consume(RBRACKET))
+        {
+            cout<<"Missing } after expression\n";
+            exit(0);
+        }
+
+        ruleExprPostfix1();
         return 1;
     }
 
-    curTk = startTk;
+    if(consume(DOT))
+    {
+        if(!consume(ID))
+        {
+            cout<<"Missing identifier after .\n";
+            exit(0);
+        }
+
+        ruleExprPostfix1();
+        return 1;
+    }
+
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprPrimary()
+{
+    cout<<"Expr primary\n";
+    if(consume(CT_INT) || consume(CT_REAL) || consume(CT_CHAR) || consume(CT_STRING))
+        return 1;
+
+    if(consume(LPAR))
+    {
+        if(!ruleExpr())
+        {
+            cout<<"Missing expression after (\n";
+            exit(0);
+        }
+
+        if(!consume(RPAR))
+        {
+            cout<<"Missing ) after expression\n";
+            exit(0);
+        }
+
+        return 1;
+    }
+
+    if(consume(ID))
+    {
+        ruleExprPrimaryInner1();
+        cout<<"found id\n";
+        return 1;
+    }
+
     return 0;
-    //TODO
+}
+
+int SemanticAnalyzer::ruleExprPrimaryInner1()
+{
+    cout<<"Expr primary1\n";
+    if(!consume(LPAR))
+        return 0;
+
+    ruleExprPrimaryInner2();
+
+    if(!consume(RPAR))
+    {
+        cout<<"Missing ) after expression\n";
+        exit(0);
+    }
+
+    return 1;
+}
+
+int SemanticAnalyzer::ruleExprPrimaryInner2()
+{
+    if(!ruleExpr())
+        return 0;
+
+    while (1)
+    {
+        if(!consume(COMMA))
+            break;
+
+        if(!ruleExpr())
+        {
+            cout<<"Missing expression after comma\n";
+            exit(0);
+        }
+    }
+
+    return 1;
 }
 
 int SemanticAnalyzer::ruleUnit()
@@ -577,7 +973,10 @@ int SemanticAnalyzer::ruleUnit()
 
 
 		if(consume(END))
+        {
+            cout<<"Found END at token "<<curTk<<"\n";
 			return 1;
+        }
 	}
 	return 0;
 }

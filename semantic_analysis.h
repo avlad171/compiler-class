@@ -2,6 +2,7 @@
 #define SEMANTIC_ANALYSIS_H_INCLUDED
 
 #include "lexical_analysis.h"
+#include "symbol_table.h"
 #include <vector>
 
 class SemanticAnalyzer
@@ -12,35 +13,53 @@ class SemanticAnalyzer
 
     //rules
     int consume(int code);
-    int ruleWhile();
-    int expr();
-    int stm();
-
-public:
-    SemanticAnalyzer(std::vector<Token> t);
-    int run();
     int ruleUnit();
     int ruleDeclStruct();
     int ruleDeclVar();
-    int ruleTypeBase();
+    TypeBase ruleTypeBase();
     int ruleArrayDecl();
-    int ruleTypeName();
+    TypeBase ruleTypeName();
     int ruleDeclFunc();
     int ruleFuncArg();
     int ruleStm();
     int ruleStmCompound();
     int ruleIf();
+    int ruleWhile();
     int ruleFor();
     int ruleBreak();
     int ruleReturn();
     int ruleExpr();
     int ruleExprAssign();
     int ruleExprOr();
+    int ruleExprOr1();
     int ruleExprAnd();
+    int ruleExprAnd1();
     int ruleExprEq();
+    int ruleExprEq1();
     int ruleExprRel();
+    int ruleExprRel1();
     int ruleExprAdd();
+    int ruleExprAdd1();
     int ruleExprMul();
+    int ruleExprMul1();
     int ruleExprCast();
+    int ruleExprUnary();
+    int ruleExprPostfix();
+    int ruleExprPostfix1();
+    int ruleExprPrimary();
+    int ruleExprPrimaryInner1();
+    int ruleExprPrimaryInner2();
+    int addVar(const std::string&, TypeBase);
+
+    //for symbol table
+    Symbols symbols;// tabela de simboluri
+    int crtDepth;// "adancimea" contextului curent, initial 0
+    Symbol* crtFunc;// (pointer la simbolul functiei daca in functie, altfel NULL)
+    Symbol* crtStruct;// (pointer la simbolul structurii daca in structura, altfel NULL)
+
+public:
+    SemanticAnalyzer(std::vector<Token> t);
+    int run();
+
 };
 #endif // SEMANTIC_ANALYSIS_H_INCLUDED
