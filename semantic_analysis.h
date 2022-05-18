@@ -18,7 +18,7 @@ class SemanticAnalyzer
     int ruleDeclStruct();
     int ruleDeclVar();
     Type ruleTypeBase();
-    int ruleArrayDecl();
+    Type ruleArrayDecl();
     Type ruleTypeName();
     int ruleDeclFunc();
     int ruleFuncArg();

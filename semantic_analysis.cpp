@@ -129,7 +129,7 @@ int SemanticAnalyzer::ruleDeclVar()
 		exit(0);
 	}
     varname = tokenList[curTk-1].text;
-	vartype.nElements = ruleArrayDecl();
+	vartype.nElements = ruleArrayDecl().nElements;
     addVar(varname, vartype);
 
 	while (1)
@@ -145,7 +145,7 @@ int SemanticAnalyzer::ruleDeclVar()
 			exit(0);
 		}
         varname = tokenList[curTk-1].text;
-		vartype.nElements = ruleArrayDecl();
+		vartype.nElements = ruleArrayDecl().nElements;
         addVar(varname, vartype);
 	}
 
@@ -210,15 +210,29 @@ Type SemanticAnalyzer::ruleTypeBase()
 	return ret;
 }
 
-int SemanticAnalyzer::ruleArrayDecl()
+Type SemanticAnalyzer::ruleArrayDecl()
 {
+    Type ret;
+    ret.nElements = 0;
 	if(!consume(LBRACKET))
     {
         cout<<"No array at "<<curTk<<"\n";
-        return -1;
+        ret.nElements = -1;
+        return ret;
     }
 
 	ruleExpr();
+    if (!rv.isCtVal)
+    {
+        cout<<"Array size is not constant!\n";
+        exit(0);
+    }
+    if (!rv.type.typeBase == CT_INT)
+    {
+        cout<<"Array size is not an integer!\n";
+        exit(0);
+    }
+    ret.nElements=rv.ctVal.i;
 
 	if(!consume(RBRACKET))
     {
@@ -227,7 +241,7 @@ int SemanticAnalyzer::ruleArrayDecl()
     }
 
     cout<<"ArrayDecl!\n";
-	return 0;  //no arrays ATM
+	return ret;
 }
 
 Type SemanticAnalyzer::ruleTypeName()
@@ -241,7 +255,7 @@ Type SemanticAnalyzer::ruleTypeName()
         return ret;
     }
 
-	ret.nElements = ruleArrayDecl();
+	ret.nElements = ruleArrayDecl().nElements;
 	return ret;
 }
 
@@ -353,7 +367,7 @@ int SemanticAnalyzer::ruleFuncArg()
 		exit(0);
     }
     string arg_name = tokenList[curTk-1].text;
-	ret.nElements = ruleArrayDecl();
+	ret.nElements = ruleArrayDecl().nElements;
     Symbol * s = addSymbol(symbols, arg_name, CLS_VAR);
     s->mem = MEM_ARG;
     s->type = ret.typeBase;
@@ -443,6 +457,11 @@ int SemanticAnalyzer::ruleIf()
         exit(0);
     }
 
+    if (rv.type.typeBase == TB_STRUCT)
+    {
+        cout<<"A structure can't be logically tested(if)!\n";
+        exit(0);
+    }
     cout<<"if3 at "<<curTk<<"\n";
 	if(!consume(RPAR))
 	{
@@ -491,6 +510,12 @@ int SemanticAnalyzer::ruleWhile()
         exit(0);
     }
 
+    if (rv.type.typeBase == TB_STRUCT)
+    {
+        cout<<"A structure can't be logically tested (while)!\n";
+        exit(0);
+    }
+
     if(!consume(RPAR))
     {
         cout<<"missing ) after while\n";
@@ -527,6 +552,12 @@ int SemanticAnalyzer::ruleFor()
 		cout<<"missing ; after first expression in for\n";
         exit(0);
 	}
+
+    if (rv.type.typeBase == TB_STRUCT)
+    {
+        cout<<"A structure can't be logically tested (for)!\n";
+        exit(0);
+    }
 
 	ruleExpr();
 	if(!consume(SEMICOLON))
@@ -578,6 +609,11 @@ int SemanticAnalyzer::ruleReturn()
     }
 
 	ruleExpr();
+    if (rv.type.typeBase == TB_VOID)
+    {
+        cout<<"A void function can't return a value!\n";
+        exit(0);
+    }
 
 	if(!consume(SEMICOLON))
 	{
@@ -599,6 +635,13 @@ int SemanticAnalyzer::ruleExprAssign()
     int startTk = curTk;
     if(ruleExprUnary())
     {
+        auto rv1 = rv;
+        if(!rv.isLVal)
+        {
+            cout<<"Can't assign to a non lval (expr assign)!\n";
+            exit(0);
+        }
+
         if(!consume(ASSIGN))
         {
             curTk = startTk;
@@ -611,7 +654,17 @@ int SemanticAnalyzer::ruleExprAssign()
                 cout<<"Missing expression after =\n";
                 exit(0);
             }
+            auto rv2 = rv;
 
+            if(rv1.type.nElements > -1 || rv2.type.nElements > -1)
+            {
+                cout<<"Arrays can't be assigned (expr assign)!\n";
+                exit(0);
+            }
+            cast(rv1.type, rv2.type);
+            rv1.isCtVal = 0;
+            rv1.isLVal = 0;
+            rv = rv1;
             return 1;
         }
     }
@@ -810,8 +863,8 @@ int SemanticAnalyzer::ruleExprCast()
 
     if(!consume(LPAR))
         return 0;
-
-    if(ruleTypeName().typeBase == TB_NONE)
+    Type to = ruleTypeName();
+    if(to.typeBase == TB_NONE)
     {
         cout<<"Missing typeBase in cast\n";
         exit(0);
@@ -828,17 +881,27 @@ int SemanticAnalyzer::ruleExprCast()
         cout<<"Missing expression after cast\n";
         exit(0);
     }
-
+    cast(to, rv.type);
+    rv.type = to;
+    rv.isCtVal = 0;
+    rv.isLVal = 0;
     return 1;
 }
 
 int SemanticAnalyzer::ruleExprUnary()
 {
+    int op = -1;
     cout<<"Expr unary\n";
     if(ruleExprPostfix())
         return 1;
 
-    if(!consume(SUB) || !consume(NOT))
+    //if(!consume(SUB) || !consume(NOT))
+    //    return 0;
+    if(consume(SUB))
+        op = SUB;
+    else if (consume(NOT))
+        op = NOT;
+    else
         return 0;
 
     if(!ruleExprUnary())
@@ -847,6 +910,37 @@ int SemanticAnalyzer::ruleExprUnary()
         exit(0);
     }
 
+    if (op == SUB)
+    {
+        if (rv.type.nElements > -1)
+        {
+            cout<<"Unary '-' cannot be applied to an array!\n";
+            exit(0);
+        }
+        if (rv.type.typeBase == TB_STRUCT)
+        {
+            cout<<"Unary '-' cannot be applied to a struct!\n";
+            exit(0);
+        }
+    }
+    else if (op == NOT)
+    {
+        if (rv.type.typeBase == TB_STRUCT)
+        {
+            cout<<"Unary '!' cannot be applied to a struct!\n";
+            exit(0);
+        }
+        rv.type.typeBase = TB_INT;
+        rv.type.nElements = -1;
+    }
+    else
+    {
+        //error
+        cout<<"Invalid unary operator!\n";
+        exit(0);
+    }
+    rv.isCtVal = 0;
+    rv.isLVal = 0;
     return 1;
 }
 
