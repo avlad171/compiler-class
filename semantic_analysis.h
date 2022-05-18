@@ -10,15 +10,16 @@ class SemanticAnalyzer
     std::vector<Token> tokenList;
     //int startTk = 0;
     int curTk = 0;
+    int lastTk = 0;
 
     //rules
     int consume(int code);
     int ruleUnit();
     int ruleDeclStruct();
     int ruleDeclVar();
-    TypeBase ruleTypeBase();
+    Type ruleTypeBase();
     int ruleArrayDecl();
-    TypeBase ruleTypeName();
+    Type ruleTypeName();
     int ruleDeclFunc();
     int ruleFuncArg();
     int ruleStm();
@@ -49,13 +50,15 @@ class SemanticAnalyzer
     int ruleExprPrimary();
     int ruleExprPrimaryInner1();
     int ruleExprPrimaryInner2();
-    int addVar(const std::string&, TypeBase);
+    int addVar(const std::string&, Type);
 
     //for symbol table
     Symbols symbols;// tabela de simboluri
     int crtDepth;// "adancimea" contextului curent, initial 0
     Symbol* crtFunc;// (pointer la simbolul functiei daca in functie, altfel NULL)
     Symbol* crtStruct;// (pointer la simbolul structurii daca in structura, altfel NULL)
+    RetVal rv;
+    RetVal rve;
 
 public:
     SemanticAnalyzer(std::vector<Token> t);

@@ -18,7 +18,7 @@ typedef struct _Symbol
     const char *name; // a reference to the name stored in a token
     int cls; // CLS_*
     int mem; // MEM_*
-    Type type;
+    Type typeBase;
     int depth; // 0-global, 1-in function, 2... - nested blocks in function
     union
     {
@@ -111,13 +111,35 @@ struct Symbol
 
 };
 
-struct TypeBase
+struct Type
 {
-    int type = TB_NONE;
+    int typeBase = TB_NONE;
     Symbol * struct_type = nullptr;
     int nElements = 0;
+
+    Type(int typeBase, int nElements = -1)
+    {
+        this->typeBase = typeBase;
+        this->nElements = nElements;
+    }
+
+    Type() = default;
 };
 
+typedef union
+{
+    int i; // int, char
+    double d; // double
+    const char *str; // char[]
+} CtVal;
+
+struct RetVal
+{
+    Type type; // type of the result
+    int isLVal; // if it is a LVal
+    int isCtVal; // if it is a constant value (int, real, char, char[])
+    CtVal ctVal; // the constat value
+};
 
 typedef std::vector<Symbol*> Symbols;
 

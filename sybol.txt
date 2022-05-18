@@ -1,6 +1,6 @@
 facem tabela asta de simboluri
 
-structura type - tipuri de baza, pointer spre simbol in caz de structura, al 3-lea doar daca avem vector
+structura typeBase - tipuri de baza, pointer spre simbol in caz de structura, al 3-lea doar daca avem vector
 structura symbol - clasa, membru, tip (de mai sus), depth - daca avem acoalade imbuibate sa stim in ce scop
 
 variabola "Symbols" de pe pag 3 e tabela de simboluri

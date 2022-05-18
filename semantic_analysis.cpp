@@ -17,6 +17,7 @@ int SemanticAnalyzer::consume(int code)
 {
     if(tokenList[curTk].code == code)
     {
+        lastTk = curTk;
         curTk++;
         return 1;
     }
@@ -24,19 +25,8 @@ int SemanticAnalyzer::consume(int code)
     return 0;
 }
 
-/*int SemanticAnalyzer::expr()
-{
-    int startTk = curTk;
-    if(consume(CT_INT))
-    {
-        return 1;
-    }
 
-    curTk = startTk;
-    return 0;
-}*/
-
-int SemanticAnalyzer::addVar(const string& name, TypeBase type)
+int SemanticAnalyzer::addVar(const string& name, Type type)
 {
     Symbol *s;
     if(crtStruct)
@@ -63,7 +53,7 @@ int SemanticAnalyzer::addVar(const string& name, TypeBase type)
         s = addSymbol(symbols, name, CLS_VAR);
         s->mem = MEM_GLOBAL;
     }
-    s->type = type.type;
+    s->type = type.typeBase;
     s->struct_type = type.struct_type;
     s->nElements = type.nElements;
 
@@ -128,14 +118,14 @@ int SemanticAnalyzer::ruleDeclVar()
 {
     cout<<"Declvar!\n";
     int startTk = curTk;
-    TypeBase vartype = ruleTypeBase();
-	if(vartype.type == TB_NONE)
+    Type vartype = ruleTypeBase();
+	if(vartype.typeBase == TB_NONE)
 		return 0;
 
     string varname;
 	if(!consume(ID))
 	{
-	    cout<<"Missing ID after type base!\n";
+	    cout<<"Missing ID after typeBase base!\n";
 		exit(0);
 	}
     varname = tokenList[curTk-1].text;
@@ -169,23 +159,23 @@ int SemanticAnalyzer::ruleDeclVar()
 	return 1;
 }
 
-TypeBase SemanticAnalyzer::ruleTypeBase()
+Type SemanticAnalyzer::ruleTypeBase()
 {
-    TypeBase ret;
+    Type ret;
 
     if(consume(INT))
     {
-        ret.type = TB_INT;
+        ret.typeBase = TB_INT;
         return ret;
     }
     else if (consume(DOUBLE))
     {
-        ret.type = TB_DOUBLE;
+        ret.typeBase = TB_DOUBLE;
         return ret;
     }
     else if(consume(CHAR))
     {
-        ret.type = TB_CHAR;
+        ret.typeBase = TB_CHAR;
         return ret;
     }
 
@@ -211,7 +201,7 @@ TypeBase SemanticAnalyzer::ruleTypeBase()
                 cout<<struct_name<<"is not a struct";
                 exit(0);
             }
-            ret.type = TB_STRUCT;
+            ret.typeBase = TB_STRUCT;
             ret.struct_type = s;
             return ret;
         }
@@ -240,12 +230,12 @@ int SemanticAnalyzer::ruleArrayDecl()
 	return 0;  //no arrays ATM
 }
 
-TypeBase SemanticAnalyzer::ruleTypeName()
+Type SemanticAnalyzer::ruleTypeName()
 {
-    TypeBase ret;
+    Type ret;
 	int startTk = curTk;
     ret = ruleTypeBase();
-	if(ret.type == TB_NONE)
+	if(ret.typeBase == TB_NONE)
     {
 		curTk = startTk;
         return ret;
@@ -258,11 +248,11 @@ TypeBase SemanticAnalyzer::ruleTypeName()
 int SemanticAnalyzer::ruleDeclFunc()
 {
     cout<<"DeclFunc!\n";
-    TypeBase ret;
+    Type ret;
 	int startTk = curTk;
     ret = ruleTypeBase();
-    cout<<ret.type<<"\n";
-	if(ret.type != TB_NONE)
+    cout << ret.typeBase << "\n";
+	if(ret.typeBase != TB_NONE)
 	{
 	    cout<<"Function returning non-void!\n";
 		if(consume(MUL))
@@ -278,7 +268,7 @@ int SemanticAnalyzer::ruleDeclFunc()
 	else if(consume(VOID))
 	{
         cout<<"Void function\n";
-        ret.type = TB_VOID;
+        ret.typeBase = TB_VOID;
 	}
 
 	else
@@ -309,7 +299,7 @@ int SemanticAnalyzer::ruleDeclFunc()
     }
 
     crtFunc = addSymbol(symbols, func_name, CLS_FUNC);
-    crtFunc->type=ret.type;
+    crtFunc->type=ret.typeBase;
     crtFunc->nElements = ret.nElements;
     crtFunc->struct_type = ret.struct_type;
     crtDepth++;
@@ -348,10 +338,10 @@ int SemanticAnalyzer::ruleDeclFunc()
 
 int SemanticAnalyzer::ruleFuncArg()
 {
-    TypeBase ret;
+    Type ret;
 	int startTk = curTk;
     ret = ruleTypeBase();
-	if(ret.type == TB_NONE)
+	if(ret.typeBase == TB_NONE)
 	{
 		curTk = startTk;
         return 0;
@@ -366,12 +356,12 @@ int SemanticAnalyzer::ruleFuncArg()
 	ret.nElements = ruleArrayDecl();
     Symbol * s = addSymbol(symbols, arg_name, CLS_VAR);
     s->mem = MEM_ARG;
-    s->type = ret.type;
+    s->type = ret.typeBase;
     s->struct_type = ret.struct_type;
     s->nElements = ret.nElements;
     s = addSymbol(crtFunc->args, arg_name, CLS_VAR);
     s->mem = MEM_ARG;
-    s->type = ret.type;
+    s->type = ret.typeBase;
     s->struct_type = ret.struct_type;
     s->nElements = ret.nElements;
 	return 1;
@@ -821,9 +811,9 @@ int SemanticAnalyzer::ruleExprCast()
     if(!consume(LPAR))
         return 0;
 
-    if(ruleTypeName().type == TB_NONE)
+    if(ruleTypeName().typeBase == TB_NONE)
     {
-        cout<<"Missing type in cast\n";
+        cout<<"Missing typeBase in cast\n";
         exit(0);
     }
 
@@ -908,8 +898,41 @@ int SemanticAnalyzer::ruleExprPostfix1()
 int SemanticAnalyzer::ruleExprPrimary()
 {
     cout<<"Expr primary\n";
-    if(consume(CT_INT) || consume(CT_REAL) || consume(CT_CHAR) || consume(CT_STRING))
+    //if(consume(CT_INT) || consume(CT_REAL) || consume(CT_CHAR) || consume(CT_STRING))
+    //    return 1;
+
+    if (consume(CT_INT))
+    {
+        rv.type = Type{TB_INT};
+        rv.ctVal.i = tokenList[lastTk].i;
+        rv.isCtVal = 1;
+        rv.isLVal = 0;
         return 1;
+    }
+    else if (consume(CT_REAL))
+    {
+        rv.type = Type{TB_DOUBLE};
+        rv.ctVal.i = tokenList[lastTk].r;
+        rv.isCtVal = 1;
+        rv.isLVal = 0;
+        return 1;
+    }
+    else if (consume(CT_CHAR))
+    {
+        rv.type = Type{TB_CHAR};
+        rv.ctVal.i = tokenList[lastTk].i;
+        rv.isCtVal = 1;
+        rv.isLVal = 0;
+        return 1;
+    }
+    else if (consume(CT_STRING))
+    {
+        rv.type = Type{TB_CHAR};
+        rv.ctVal.str = tokenList[lastTk].text;
+        rv.isCtVal = 1;
+        rv.isLVal = 0;
+        return 1;
+    }
 
     if(consume(LPAR))
     {
