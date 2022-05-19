@@ -7,7 +7,7 @@
 
 using namespace std;
 
-void cast(Type & dst, Type &src)
+void cast(const Type & dst, const Type &src)
 {
     if(src.nElements > -1)
     {
@@ -57,4 +57,10 @@ void cast(Type & dst, Type &src)
     }
     cout<<"Cast failed! Incompatible types!\n";
     exit(0);
+}
+
+Type getArithType(const Type & t1, const Type & t2)
+{
+    //for now
+    return t2;
 }

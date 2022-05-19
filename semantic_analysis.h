@@ -48,8 +48,8 @@ class SemanticAnalyzer
     int ruleExprPostfix();
     int ruleExprPostfix1();
     int ruleExprPrimary();
-    int ruleExprPrimaryInner1();
-    int ruleExprPrimaryInner2();
+    int ruleExprPrimaryInner1(Symbol *);
+    //int ruleExprPrimaryInner2();
     int addVar(const std::string&, Type);
 
     //for symbol table
@@ -58,7 +58,7 @@ class SemanticAnalyzer
     Symbol* crtFunc;// (pointer la simbolul functiei daca in functie, altfel NULL)
     Symbol* crtStruct;// (pointer la simbolul structurii daca in structura, altfel NULL)
     RetVal rv;
-    RetVal rve;
+    RetVal rv_struct;
 
 public:
     SemanticAnalyzer(std::vector<Token> t);

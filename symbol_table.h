@@ -71,6 +71,8 @@ struct RetVal
     int isLVal; // if it is a LVal
     int isCtVal; // if it is a constant value (int, real, char, char[])
     CtVal ctVal; // the constat value
+
+
 };
 
 typedef std::vector<Symbol*> Symbols;
@@ -86,7 +88,7 @@ int deleteSymbolsAfter(Symbols & symbols, Symbol * s);
 void printSymbolTable(Symbols & symbols);
 
 //types analysis
-void cast(Type &, Type &);
-Type getArithType(Type &, Type &);
+void cast(const Type &, const Type &);
+Type getArithType(const Type &, const Type &);
 
 #endif // SYMBOL_TABLE_H_INCLUDED

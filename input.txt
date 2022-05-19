@@ -1,12 +1,16 @@
 struct myStruct { int x; double y; };
 char z;
 //z = 'a';
-void m(int p, double q) {
-	if(p <= q) {
+void m(int p, double q)
+{
+	if(p <= q)
+	{
 		int a;
 		a = 100;
 		/* Here1 */
-	} else {
+	}
+	else
+	{
 		// Here2
 		double b;
 		b = 3.14;

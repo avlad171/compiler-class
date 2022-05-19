@@ -59,7 +59,7 @@ void printSymbolTable(Symbols & symbols)
     cout<<symbols.size()<<": ";
     for (auto it = symbols.begin(); it != symbols.end(); ++it)
     {
-        cout<<"("<<(*it)->name<<", "<<(*it)->type<<", "<<(*it)->struct_type<<") ";
+        cout<<"("<<(*it)->name<<", "<<(*it)->type<<", "<<(*it)->struct_type<<", "<<(*it)->nElements<<") ";
     }
     cout<<endl;
 }
