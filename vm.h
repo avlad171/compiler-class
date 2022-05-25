@@ -5,6 +5,8 @@
 #ifndef CT_VM_H
 #define CT_VM_H
 
+#include <string>
+
 //the vm operations
 enum
 {
@@ -40,4 +42,5 @@ enum
     SUB_C, SUB_D, SUB_I
 };
 
+std::string to_hex_string(uint64_t x);
 #endif //CT_VM_H
