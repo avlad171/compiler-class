@@ -12,7 +12,7 @@
 using namespace std;
 
 //context
-#define STACK_SIZE 8 * 1024 * 1024
+#define STACK_SIZE (8 * 1024 * 1024)
 char stack[STACK_SIZE];
 char * SP;
 char * stackAfter;
@@ -20,7 +20,23 @@ char * IP;
 unsigned int VIP;
 char * BP;
 
+#define GLOBAL_SIZE (32 * 1024 * 1024)
+char globals[GLOBAL_SIZE];
+int nGlobals = 0;
+
 //helpers
+void * allocGlobal(int sz)
+{
+    void *p = globals + nGlobals;
+    if(nGlobals + sz > GLOBAL_SIZE)
+    {
+        cout<<"Fatal error, global variables memory full, can't allocate anymore!\n";
+        exit(-1);
+    }
+    nGlobals += sz;
+    return p;
+}
+
 void pushd(double d)
 {
     if(SP + sizeof(double) > stackAfter)
@@ -105,7 +121,7 @@ int popi()
     return *(int *) SP;
 }
 
-double popc()
+char popc()
 {
     SP -= sizeof (char);
     if (SP < stack)
@@ -151,9 +167,9 @@ int run(vector<Instr> & bytecode)
     stackAfter = stack + STACK_SIZE;
 
     //VM main loop
-    while(1)
+    while(true)
     {
-        cout << "[VM] " << to_hex_string(reinterpret_cast<uint64_t>(IP)) << "\n";
+        cout << "[VM] " << to_hex_string(VIP) << "\t";
         switch(bytecode[VIP].opcode)
         {
             case ADD_I:
@@ -161,7 +177,7 @@ int run(vector<Instr> & bytecode)
                 int i1, i2;
                 i1 = popi();
                 i2 = popi();
-                cout << "ADD_I\t" << i1 << "-" << i2 << " -> " << (i1 + i2) << "\n";
+                cout << "ADD_I\t" << i1 << "+" << i2 << " -> " << (i1 + i2) << "\n";
                 pushi(i1 + i2);
                 VIP++;
             }
@@ -172,7 +188,7 @@ int run(vector<Instr> & bytecode)
                 double d1, d2;
                 d1 = popd();
                 d2 = popd();
-                cout << "ADD_D\t" << d1 << "-" << d2 << " -> " << (d1 + d2) << "\n";
+                cout << "ADD_D\t" << d1 << "+" << d2 << " -> " << (d1 + d2) << "\n";
                 pushd(d1 + d2);
                 VIP++;
             }
@@ -183,7 +199,7 @@ int run(vector<Instr> & bytecode)
                 char c1, c2;
                 c1 = popc();
                 c2 = popc();
-                cout << "ADD_C\t" << c1 << "-" << c2 << " -> " << (c1 + c2) << "\n";
+                cout << "ADD_C\t" << c1 << "+" << c2 << " -> " << (c1 + c2) << "\n";
                 pushc(c1 + c2);
                 VIP++;
             }
@@ -236,15 +252,19 @@ int run(vector<Instr> & bytecode)
 
             case CALL:
             {
+                int callAddr = bytecode[VIP].args[0].i;
                 int retAddr = VIP + 1;
-                cout<<"CALL\t"<<retAddr<<"\n";
+                cout<<"CALL\t"<<callAddr<<"\n";
                 pushi(retAddr);
-                VIP++;
+                VIP = callAddr;
             }
             break;
 
             case CALLEXT:
             {
+                cout<<"CALLEXT to do, printing stack:\n";
+                int i = popi();
+                cout<<"As int: "<<i<<"\n";
                 VIP++;
             }
             break;
@@ -312,9 +332,9 @@ int run(vector<Instr> & bytecode)
             case DIV_I:
             {
                 int i1, i2;
-                i1 = popi();
                 i2 = popi();
-                cout << "DIV_I\t" << i1 << "-" << i2 << " -> " << (i1 / i2) << "\n";
+                i1 = popi();
+                cout << "DIV_I\t" << i1 << "/" << i2 << " -> " << (i1 / i2) << "\n";
                 pushi(i1 / i2);
                 VIP++;
             }
@@ -323,9 +343,9 @@ int run(vector<Instr> & bytecode)
             case DIV_D:
             {
                 double d1, d2;
-                d1 = popd();
                 d2 = popd();
-                cout << "DIV_D\t" << d1 << "-" << d2 << " -> " << (d1 / d2) << "\n";
+                d1 = popd();
+                cout << "DIV_D\t" << d1 << "/" << d2 << " -> " << (d1 / d2) << "\n";
                 pushd(d1 / d2);
                 VIP++;
             }
@@ -334,9 +354,9 @@ int run(vector<Instr> & bytecode)
             case DIV_C:
             {
                 char c1, c2;
-                c1 = popc();
                 c2 = popc();
-                cout << "DIV_C\t" << c1 << "-" << c2 << " -> " << (c1 / c2) << "\n";
+                c1 = popc();
+                cout << "DIV_C\t" << c1 << "/" << c2 << " -> " << (c1 / c2) << "\n";
                 pushc(c1 / c2);
                 VIP++;
             }
@@ -482,7 +502,19 @@ int run(vector<Instr> & bytecode)
 
             case INSERT:
             {
-                cout<<"INSERT\n";   //todo
+                int i1 = bytecode[VIP].args[0].i; // iDst
+                int i2 = bytecode[VIP].args[1].i; // nBytes
+                cout<<"INSERT\t"<<i1<<", "<<i2<<"\n";
+
+                if(SP + i2 > stackAfter)
+                {
+                    cout<<"Fatal error, stack overflow at insert\n";
+                    exit(-1);
+                }
+                memmove(SP- i1 + i2,SP - i1,i1); //make room
+                memmove(SP - i1,SP + i2,i2); //dup
+                SP += i2;
+
                 VIP++;
             }
             break;
@@ -689,19 +721,12 @@ int run(vector<Instr> & bytecode)
             }
             break;
 
-            case LOAD:
-            {
-                //todo
-                VIP++:
-            }
-            break;
-
             case MUL_I:
             {
                 int i1, i2;
                 i1 = popi();
                 i2 = popi();
-                cout << "MUL_I\t" << i1 << "-" << i2 << " -> " << (i1 * i2) << "\n";
+                cout << "MUL_I\t" << i1 << "*" << i2 << " -> " << (i1 * i2) << "\n";
                 pushi(i1 * i2);
                 VIP++;
             }
@@ -712,7 +737,7 @@ int run(vector<Instr> & bytecode)
                 double d1, d2;
                 d1 = popd();
                 d2 = popd();
-                cout << "MUL_D\t" << d1 << "-" << d2 << " -> " << (d1 * d2) << "\n";
+                cout << "MUL_D\t" << d1 << "*" << d2 << " -> " << (d1 * d2) << "\n";
                 pushd(d1 * d2);
                 VIP++;
             }
@@ -723,7 +748,7 @@ int run(vector<Instr> & bytecode)
                 char c1, c2;
                 c1 = popc();
                 c2 = popc();
-                cout << "MUL_C\t" << c1 << "-" << c2 << " -> " << (c1 * c2) << "\n";
+                cout << "MUL_C\t" << c1 << "*" << c2 << " -> " << (c1 * c2) << "\n";
                 pushc(c1 * c2);
                 VIP++;
             }
@@ -855,8 +880,11 @@ int run(vector<Instr> & bytecode)
             {
                 int offset = bytecode[VIP].args[0].i;
                 void * a = popa();
-                cout << "OFFSET\t" << a << " + " << offset << " -> " << (a + offset) << "\n";
-                pusha(a + offset);  //todo
+                int64_t a_temp = (int64_t)a;
+                a_temp += offset;
+                a = (void *) a_temp;
+                cout << "OFFSET\t" << a << " + " << offset << " -> " << (to_hex_string((uint64_t)a)) << "\n";
+                pusha(a);
                 VIP++;
             }
             break;
@@ -918,6 +946,7 @@ int run(vector<Instr> & bytecode)
             case PUSHCT_A:
             {
                 void * a = bytecode[VIP].args[0].addr;
+                cout<<"PUSHCT_A\t"<<to_hex_string((uint64_t)a)<<"\n";
                 pusha(a);
                 VIP++;
             }
@@ -926,6 +955,7 @@ int run(vector<Instr> & bytecode)
             case PUSHCT_C:
             {
                 char c = bytecode[VIP].args[0].i & 0xFF;
+                cout<<"PUSHCT_C\t"<<c<<"\n";
                 pushc(c);
                 VIP++;
             }
@@ -934,6 +964,7 @@ int run(vector<Instr> & bytecode)
             case PUSHCT_I:
             {
                 int i = bytecode[VIP].args[0].i;
+                cout<<"PUSHCT_I\t"<<i<<"\n";
                 pushi(i);
                 VIP++;
             }
@@ -942,6 +973,7 @@ int run(vector<Instr> & bytecode)
             case PUSHCT_D:
             {
                 double d = bytecode[VIP].args[0].d;
+                cout<<"PUSHCT_D\t"<<d<<"\n";
                 pushd(d);
                 VIP++;
             }
@@ -968,6 +1000,23 @@ int run(vector<Instr> & bytecode)
             }
             break;
 
+            case LOAD:
+            {
+                int i = bytecode[VIP].args[0].i;
+                void * a = popa();
+                cout<<"LOAD\t"<<i<<"\t"<<to_hex_string((uint64_t)a)<<"\n";
+                if(SP + i > stackAfter)
+                {
+                    cout<<"Fatal error, stack overflow on LOAD\n";
+                    exit(-1);
+                }
+                memcpy(SP,a,i);
+                SP += i;
+
+                VIP++;
+            }
+            break;
+
             case STORE:
             {
                 int i = bytecode[VIP].args[0].i;
@@ -988,8 +1037,8 @@ int run(vector<Instr> & bytecode)
             case SUB_I:
             {
                 int i1, i2;
-                i1 = popi();
                 i2 = popi();
+                i1 = popi();
                 cout << "SUB_I\t" << i1 << "-" << i2 << " -> " << (i1 - i2) << "\n";
                 pushi(i1 - i2);
                 VIP++;
@@ -999,8 +1048,8 @@ int run(vector<Instr> & bytecode)
             case SUB_D:
             {
                 double d1, d2;
-                d1 = popd();
                 d2 = popd();
+                d1 = popd();
                 cout << "SUB_D\t" << d1 << "-" << d2 << " -> " << (d1 - d2) << "\n";
                 pushd(d1 - d2);
                 VIP++;
@@ -1010,8 +1059,8 @@ int run(vector<Instr> & bytecode)
             case SUB_C:
             {
                 char c1, c2;
-                c1 = popc();
                 c2 = popc();
+                c1 = popc();
                 cout << "SUB_C\t" << c1 << "-" << c2 << " -> " << (c1 - c2) << "\n";
                 pushc(c1 - c2);
                 VIP++;
@@ -1026,5 +1075,26 @@ int run(vector<Instr> & bytecode)
 int main()
 {
     cout<<"Hello from the VM!\n";
+    vector<Instr> bytecode;
+
+    int *v = (int*)allocGlobal(sizeof(int));
+
+    addInstr(bytecode, Instr (PUSHCT_A, v));
+    addInstr(bytecode, Instr (PUSHCT_I, 3));
+    addInstr(bytecode, Instr (STORE, sizeof(int)));
+    int L1 = addInstr(bytecode, Instr (PUSHCT_A, v));
+    addInstr(bytecode, Instr (LOAD, sizeof(int)));
+    addInstr(bytecode, Instr(CALLEXT));
+    addInstr(bytecode, Instr (PUSHCT_A, v));
+    addInstr(bytecode, Instr (PUSHCT_A, v));
+    addInstr(bytecode, Instr (LOAD, sizeof(int)));
+    addInstr(bytecode, Instr (PUSHCT_I, 1));
+    addInstr(bytecode, Instr (SUB_I));
+    addInstr(bytecode, Instr (STORE, sizeof(int)));
+    addInstr(bytecode, Instr (PUSHCT_A, v));
+    addInstr(bytecode, Instr (LOAD, sizeof(int)));
+    addInstr(bytecode, Instr (JT_I, L1));
+    addInstr(bytecode, Instr (HALT));
+    run(bytecode);
     return 0;
 }
