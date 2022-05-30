@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <vector>
+#include <map>
 #include <stdlib.h>
 
 #include "vm.h"
@@ -153,6 +154,21 @@ void sub_sp(int n)
     }
 }
 
+void f()
+{
+    cout<<"Vand Golf 4\n";
+    return;
+}
+
+void put_i()
+{
+    cout<<"PUT I:\t";
+    int i = popi();
+    cout<<i<<"\n";
+}
+
+map <uint64_t, uint64_t> funcs;
+
 //todo somehow remove global variables
 int run(vector<Instr> & bytecode)
 {
@@ -262,9 +278,11 @@ int run(vector<Instr> & bytecode)
 
             case CALLEXT:
             {
-                cout<<"CALLEXT to do, printing stack:\n";
-                int i = popi();
-                cout<<"As int: "<<i<<"\n";
+                cout<<"CALLEXT\t";
+                uint64_t func_addr = reinterpret_cast<uint64_t>(bytecode[VIP].args[0].addr);
+                void (*fun_ptr)() = reinterpret_cast<void (*)()>(funcs[func_addr]);
+                (*fun_ptr)();
+
                 VIP++;
             }
             break;
@@ -1075,6 +1093,11 @@ int run(vector<Instr> & bytecode)
 int main()
 {
     cout<<"Hello from the VM!\n";
+
+    funcs[0x10000] = (uint64_t)f;
+    funcs[0x20000] = (uint64_t)put_i;
+
+    cout << "Address of put_i is " << to_hex_string(reinterpret_cast<uint64_t>(put_i)) << "\n";
     vector<Instr> bytecode;
 
     int *v = (int*)allocGlobal(sizeof(int));
@@ -1084,7 +1107,7 @@ int main()
     addInstr(bytecode, Instr (STORE, sizeof(int)));
     int L1 = addInstr(bytecode, Instr (PUSHCT_A, v));
     addInstr(bytecode, Instr (LOAD, sizeof(int)));
-    addInstr(bytecode, Instr(CALLEXT));
+    addInstr(bytecode, Instr(CALLEXT, (void *)0x20000));
     addInstr(bytecode, Instr (PUSHCT_A, v));
     addInstr(bytecode, Instr (PUSHCT_A, v));
     addInstr(bytecode, Instr (LOAD, sizeof(int)));

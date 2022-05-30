@@ -12,6 +12,7 @@ Symbol * addSymbol(Symbols & symbols, const char * name, int cls, int mem, int t
 {
     string n = name;
     Symbol * s = new Symbol(n, cls, mem, type, depth, struct_type, nElements);
+    symbols.push_back(s);
     return s;
 }
 
@@ -62,4 +63,16 @@ void printSymbolTable(Symbols & symbols)
         cout<<"("<<(*it)->name<<", "<<(*it)->type<<", "<<(*it)->struct_type<<", "<<(*it)->nElements<<") ";
     }
     cout<<endl;
+}
+
+Symbol *addExtFunc(Symbols & symbols, const char *name, int type, Symbol * struct_type, int nElements)
+{
+    Symbol * s = addSymbol(symbols, name, CLS_EXTFUNC, MEM_GLOBAL, type, 0, struct_type, nElements);
+    return s;
+}
+
+Symbol *addFuncArg(Symbol *func, const char *name, int type, Symbol * struct_type, int nElements)
+{
+    Symbol *a = addSymbol(func->args, name, CLS_VAR, MEM_LOCAL, type, 1, struct_type, nElements);
+    return a;
 }

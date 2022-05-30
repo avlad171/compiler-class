@@ -77,8 +77,8 @@ struct RetVal
 
 typedef std::vector<Symbol*> Symbols;
 
-Symbol* addSymbol(Symbols & symbols, std::string name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = 0);
-Symbol* addSymbol(Symbols & symbols, const char * name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = 0);
+Symbol* addSymbol(Symbols & symbols, std::string name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = -1);
+Symbol* addSymbol(Symbols & symbols, const char * name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = -1);
 
 Symbol* findSymbol(Symbols & symbols, const char * name);
 Symbol* findSymbol(Symbols & symbols, std::string name);
@@ -90,5 +90,9 @@ void printSymbolTable(Symbols & symbols);
 //types analysis
 void cast(const Type &, const Type &);
 Type getArithType(const Type &, const Type &);
+
+//pre-defined functions
+Symbol *addExtFunc(Symbols & symbols, const char *name, int type = TB_INT, Symbol * struct_type = nullptr, int nElements = -1);
+Symbol *addFuncArg(Symbol *func, const char *name, int type = TB_INT, Symbol * struct_type = nullptr, int nElements = -1);
 
 #endif // SYMBOL_TABLE_H_INCLUDED

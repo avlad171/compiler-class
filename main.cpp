@@ -44,5 +44,7 @@ int main(int argc, char * argv[])
 
     SemanticAnalyzer S(L.getTokenList());
     S.run();
+    //S.getBytecode();
+    //VM.run()
     return 0;
 }

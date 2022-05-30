@@ -1170,7 +1170,7 @@ int SemanticAnalyzer::ruleExprPrimary()
     {
         string id_name = tokenList[lastTk].text;
         cout<<"found id "<<id_name<<"\n";
-
+        printSymbolTable(symbols);
         Symbol *s = findSymbol(symbols, id_name);
         if(!s)
         {
@@ -1263,29 +1263,36 @@ int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
     return 1;
 }
 
-/*int SemanticAnalyzer::ruleExprPrimaryInner2()
+void initGlobalSymbols(Symbols & symbol_table)
 {
-    if(!ruleExpr())
-        return 0;
+    Symbol * put_s = addExtFunc(symbol_table, "put_s", TB_VOID);
+    addFuncArg(put_s, "s", TB_CHAR, nullptr, 0);
 
-    while (1)
-    {
-        if(!consume(COMMA))
-            break;
+    printSymbolTable(symbol_table);
+    Symbol * get_s = addExtFunc(symbol_table, "get_s", TB_VOID);
+    addFuncArg(get_s, "s", TB_CHAR, nullptr, 0);
 
-        if(!ruleExpr())
-        {
-            cout<<"Missing expression after comma\n";
-            exit(0);
-        }
-    }
+    Symbol * put_i = addExtFunc(symbol_table, "put_i", TB_VOID);
+    addFuncArg(put_i, "i", TB_INT);
 
-    return 1;
-}*/
+    Symbol * get_i = addExtFunc(symbol_table, "get_i", TB_INT);
+
+    Symbol * put_d = addExtFunc(symbol_table, "put_d", TB_VOID);
+    addFuncArg(put_d, "d", TB_DOUBLE);
+
+    Symbol * get_d = addExtFunc(symbol_table, "get_d", TB_DOUBLE);
+
+    Symbol * put_c = addExtFunc(symbol_table, "put_c", TB_VOID);
+    addFuncArg(put_c, "c", TB_CHAR);
+
+    Symbol * get_c = addExtFunc(symbol_table, "get_c", TB_CHAR);
+    printSymbolTable(symbol_table);
+}
 
 int SemanticAnalyzer::ruleUnit()
 {
 	bool ok = true;
+    initGlobalSymbols(symbols);
 	while(ok)
 	{
 		ok = false;
@@ -1293,13 +1300,11 @@ int SemanticAnalyzer::ruleUnit()
 		ok |= ruleDeclVar();
 		ok |= ruleDeclFunc();
 
-
 		if(consume(END))
         {
             cout<<"Found END at token "<<curTk<<"\n";
 
             cout<<"Final symbol table: ";
-            printSymbolTable(symbols);
 			return 1;
         }
 	}
