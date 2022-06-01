@@ -6,6 +6,8 @@
 #define CT_INSTRUCTION_H
 
 #include <vector>
+#include <iostream>
+#include "vm.h"
 
 class Instr
 {
@@ -25,4 +27,5 @@ public:
 
 int addInstr(std::vector<Instr> &v, Instr i);
 
+std::ostream& operator<<(std::ostream& os, const Instr & ins);
 #endif //CT_INSTRUCTION_H

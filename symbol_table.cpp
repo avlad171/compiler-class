@@ -1,17 +1,19 @@
 #include "symbol_table.h"
 using namespace std;
 
-Symbol * addSymbol(Symbols & symbols, string name, int cls, int mem, int type, int depth, Symbol * struct_type, int nElements)
+Symbol * addSymbol(Symbols & symbols, string name, int cls, int mem, int type, int depth, Symbol * struct_type, int nElements, int64_t addr)
 {
     Symbol * s = new Symbol(name, cls, mem, type, depth, struct_type, nElements);
+    s->addr = addr;
     symbols.push_back(s);
     return s;
 }
 
-Symbol * addSymbol(Symbols & symbols, const char * name, int cls, int mem, int type, int depth, Symbol * struct_type, int nElements)
+Symbol * addSymbol(Symbols & symbols, const char * name, int cls, int mem, int type, int depth, Symbol * struct_type, int nElements, int64_t addr)
 {
     string n = name;
     Symbol * s = new Symbol(n, cls, mem, type, depth, struct_type, nElements);
+    s->addr = addr;
     symbols.push_back(s);
     return s;
 }
@@ -65,9 +67,9 @@ void printSymbolTable(Symbols & symbols)
     cout<<endl;
 }
 
-Symbol *addExtFunc(Symbols & symbols, const char *name, int type, Symbol * struct_type, int nElements)
+Symbol *addExtFunc(Symbols & symbols, const char *name, int type, int64_t addr, Symbol * struct_type, int nElements)
 {
-    Symbol * s = addSymbol(symbols, name, CLS_EXTFUNC, MEM_GLOBAL, type, 0, struct_type, nElements);
+    Symbol * s = addSymbol(symbols, name, CLS_EXTFUNC, MEM_GLOBAL, type, 0, struct_type, nElements, addr);
     return s;
 }
 

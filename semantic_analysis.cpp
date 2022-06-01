@@ -2,6 +2,61 @@
 #include <iostream>
 
 using namespace std;
+int typeArgSize(Type & t)
+{
+    int size = 0;
+    switch(t.typeBase)
+    {
+        case TB_INT:
+            size = sizeof(int);
+            break;
+
+        case TB_DOUBLE:
+            size = sizeof(double);
+            break;
+
+        case TB_CHAR:
+            size = sizeof(char);
+            break;
+
+        case TB_STRUCT:
+            cout<<"Sizeof struct not implemented!\n";
+            break;
+
+        case TB_VOID:
+            size=0;
+            break;
+
+        default:
+            cout<<"sizeof() undefined type: "<<t.typeBase<<"\n";
+            exit(-1);
+    }
+
+    return size;
+}
+
+void getRVal(vector<Instr> & bytecode, RetVal & rv)
+{
+    if(rv.isLVal)
+    {
+        switch(rv.type.typeBase)
+        {
+            case TB_INT:
+            case TB_DOUBLE:
+            case TB_CHAR:
+            case TB_STRUCT:
+                addInstr(bytecode, Instr(PUSHCT_A, rv.addr));
+                addInstr(bytecode, Instr(LOAD, typeArgSize(rv.type)));
+                break;
+            default:
+                cout<<"getRVal unhandled type: "<<rv.type.typeBase<<"\n";
+                exit(-1);
+        }
+    }
+
+    else
+        addInstr(bytecode, Instr(PUSHCT_I, rv.ctVal.i));
+}
 
 SemanticAnalyzer::SemanticAnalyzer(vector<Token> t)
 {
@@ -57,6 +112,8 @@ int SemanticAnalyzer::addVar(const string& name, Type type)
     s->struct_type = type.struct_type;
     s->nElements = type.nElements;
 
+    cout<<"Mallocing for "<<name<<" space needed "<<typeArgSize(type)<<"\n";
+    s->addr = (int64_t) malloc(typeArgSize(type));
     return 1;
 }
 
@@ -336,11 +393,20 @@ int SemanticAnalyzer::ruleDeclFunc()
     }
     crtDepth--;
     cout<<"Decreasing depth (func): "<<crtDepth<<"\n";
+    crtFunc->addr = addInstr(bytecode, ENTER);
+    cout<<"Function "<<crtFunc->name<<"is at instruction "<<crtFunc->addr<<"\n";
+
 	if(!ruleStmCompound())
 	{
 		curTk = startTk;
         return 0;
     }
+
+    if(ret.typeBase == TB_VOID)
+    {
+        addInstr(bytecode, Instr(RET, 0, 0));
+    }
+
     cout<<"Symbol table at the end of function "<<func_name<<": ";
     printSymbolTable(symbols);
     cout<<"Internal function symbol table: ";
@@ -445,14 +511,14 @@ int SemanticAnalyzer::ruleIf()
         return 0;
     }
 
-    cout<<"if1\n";
+    //cout<<"if1\n";
 	if(!consume(LPAR))
 	{
 		cout<<"missing ( after if\n";
         exit(0);
     }
 
-    cout<<"if2 at "<<curTk<<"\n";
+    //cout<<"if2 at "<<curTk<<"\n";
 	if(!ruleExpr())
 	{
 		cout<<"invalid expression after if(\n";
@@ -464,12 +530,14 @@ int SemanticAnalyzer::ruleIf()
         cout<<"A structure can't be logically tested(if)!\n";
         exit(0);
     }
-    cout<<"if3 at "<<curTk<<"\n";
+    //cout<<"if3 at "<<curTk<<"\n";
 	if(!consume(RPAR))
 	{
 		cout<<"missing ) after if\n";
         exit(0);
     }
+
+    int b1 = addInstr(bytecode, Instr(JF_I, 0));
 
     cout<<"if4\n";
 	if(!ruleStm())
@@ -481,11 +549,20 @@ int SemanticAnalyzer::ruleIf()
     cout<<"if5\n";
 	//see whether we have an else
 	if(consume(ELSE))
-		if(!ruleStm())
-		{
-			cout<<"missing else statement\n";
-			exit(0);
-		}
+    {
+        int b2 = addInstr(bytecode, Instr(JMP, 0));
+        bytecode[b1].args[0].i = b2 + 1;
+        if (!ruleStm())
+        {
+            cout << "missing else statement\n";
+            exit(0);
+        }
+        bytecode[b2].args[0].i = bytecode.size();
+    }
+    else
+    {
+        bytecode[b1].args[0].i = bytecode.size();
+    }
 
     cout<<"if6\n";
 	return 1;
@@ -622,7 +699,7 @@ int SemanticAnalyzer::ruleReturn()
         cout<<"missing ; after return\n";
         exit(0);
     }
-
+    addInstr(bytecode, Instr(RET, 0, 0));
     return 1;
 }
 
@@ -669,6 +746,20 @@ int SemanticAnalyzer::ruleExprAssign()
                 exit(0);
             }
             cast(rv1.type, rv2.type);
+
+            //addInstr(bytecode, NOP);
+            addInstr(bytecode, Instr(PUSHCT_A, rv1.addr));
+            if(rv2.isLVal)
+            {
+                addInstr(bytecode, Instr(PUSHCT_A, rv2.addr));
+                addInstr(bytecode, Instr(LOAD, typeArgSize(rv2.type)));
+            }
+            else
+                addInstr(bytecode, Instr(PUSHCT_I, rv2.ctVal.i));
+
+            addInstr(bytecode, Instr(STORE, typeArgSize(rv1.type)));
+            //addInstr(bytecode, NOP);
+
             rv1.isCtVal = 0;
             rv1.isLVal = 0;
             rv = rv1;
@@ -816,8 +907,10 @@ int SemanticAnalyzer::ruleExprRel()
 int SemanticAnalyzer::ruleExprRel1()
 {
     auto rv1 = rv;
+    int comparison = 0;
     if(consume(LESS) || consume(LESSEQ) || consume(GREATER) || consume(GREATEREQ))
     {
+        comparison = tokenList[lastTk].code;
         if(!ruleExprAdd())
         {
             cout<<"Missing expression after comparison\n";
@@ -841,6 +934,15 @@ int SemanticAnalyzer::ruleExprRel1()
             cout << "A structure cannot be compared\n";
             exit(0);
         }
+
+        cout<<"COMPARISON: "<<comparison<<"\n";
+        if(comparison == GREATER)
+        {
+            getRVal(bytecode, rv);
+            getRVal(bytecode, rv1);
+            addInstr(bytecode, Instr(GREATER_I));
+        }
+
         rv.type = Type{TB_INT,-1};
         rv.isCtVal = 0;
         rv.isLVal = 0;
@@ -1122,6 +1224,7 @@ int SemanticAnalyzer::ruleExprPrimary()
         rv.ctVal.i = tokenList[lastTk].i;
         rv.isCtVal = 1;
         rv.isLVal = 0;
+        //addInstr(bytecode, Instr(PUSHCT_I, tokenList[lastTk].i));
         return 1;
     }
     else if (consume(CT_REAL))
@@ -1130,6 +1233,7 @@ int SemanticAnalyzer::ruleExprPrimary()
         rv.ctVal.i = tokenList[lastTk].r;
         rv.isCtVal = 1;
         rv.isLVal = 0;
+        //addInstr(bytecode, Instr(PUSHCT_D, tokenList[lastTk].r));
         return 1;
     }
     else if (consume(CT_CHAR))
@@ -1138,6 +1242,7 @@ int SemanticAnalyzer::ruleExprPrimary()
         rv.ctVal.i = tokenList[lastTk].i;
         rv.isCtVal = 1;
         rv.isLVal = 0;
+        //addInstr(bytecode, Instr(PUSHCT_C, tokenList[lastTk].i));
         return 1;
     }
     else if (consume(CT_STRING))
@@ -1146,6 +1251,7 @@ int SemanticAnalyzer::ruleExprPrimary()
         rv.ctVal.str = tokenList[lastTk].text;
         rv.isCtVal = 1;
         rv.isLVal = 0;
+        //addInstr(bytecode, Instr(PUSHCT_A, tokenList[lastTk].text));    //won't work IF the string is not put in .data
         return 1;
     }
 
@@ -1183,6 +1289,7 @@ int SemanticAnalyzer::ruleExprPrimary()
         rv.type.struct_type = s->struct_type;
         rv.isCtVal = 0;
         rv.isLVal = 1;
+        rv.addr = reinterpret_cast<void *>(s->addr);
         cout<<"Type: "<<rv.type.typeBase<<"\n";
         cout<<"Is lval: "<<rv.isLVal<<"\n";
         cout<<"Struct: "<<rv.type.struct_type<<"\n";
@@ -1192,11 +1299,24 @@ int SemanticAnalyzer::ruleExprPrimary()
             rv_struct = rv;
 
         if(!ruleExprPrimaryInner1(s))
-            if(s->cls == CLS_FUNC || s->cls == CLS_EXTFUNC)
+        {
+            if (s->cls == CLS_FUNC || s->cls == CLS_EXTFUNC)
             {
-                cout<<"Missing call for function "<<id_name<<"\n";
+                cout << "Missing call for function " << id_name << "\n";
                 exit(0);
             }
+
+            //variable
+            /*if(s->depth)
+            {
+                addInstr(bytecode, Instr(PUSHFPADDR, s->offset));
+            }
+
+            else
+            {
+                addInstr(bytecode, Instr(PUSHCT_A, s->addr));
+            }*/
+        }
 
         return 1;
     }
@@ -1226,6 +1346,24 @@ int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
                 cout<<"Too many arguments in call!\n";
                 exit(0);
             }
+
+            if(s->args[i]->nElements < 0)
+            {  //only arrays are passed by addr
+                if(rv.isLVal)
+                {
+                    addInstr(bytecode, Instr(PUSHCT_A, rv.addr));
+                    addInstr(bytecode, Instr(LOAD, typeArgSize(rv.type)));
+                }
+                else
+                    addInstr(bytecode, Instr(PUSHCT_I, rv.ctVal.i));
+            }
+            else
+            {
+                //Instr in = bytecode[bytecode.size() - 1];
+                //addInstr(bytecode, )
+            }
+            //addCastInstr(i,&arg.type,&(*crtDefArg)->type);
+
             Type temp;
             temp.typeBase = s->args[i]->type;
             temp.nElements = s->args[i]->nElements;
@@ -1251,6 +1389,11 @@ int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
         exit(0);
     }
 
+    if (s->cls == CLS_FUNC)
+        addInstr(bytecode, Instr(CALL, s->addr));
+    else
+        addInstr(bytecode, Instr(CALLEXT, (void *)(s->addr)));
+
     if (i + 1 < s->args.size())
     {
         cout<<"Too few arguments in call!\n";
@@ -1265,27 +1408,27 @@ int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
 
 void initGlobalSymbols(Symbols & symbol_table)
 {
-    Symbol * put_s = addExtFunc(symbol_table, "put_s", TB_VOID);
+    Symbol * put_s = addExtFunc(symbol_table, "put_s", TB_VOID, 0x10000);
     addFuncArg(put_s, "s", TB_CHAR, nullptr, 0);
 
     printSymbolTable(symbol_table);
-    Symbol * get_s = addExtFunc(symbol_table, "get_s", TB_VOID);
+    Symbol * get_s = addExtFunc(symbol_table, "get_s", TB_VOID, 0x20000);
     addFuncArg(get_s, "s", TB_CHAR, nullptr, 0);
 
-    Symbol * put_i = addExtFunc(symbol_table, "put_i", TB_VOID);
+    Symbol * put_i = addExtFunc(symbol_table, "put_i", TB_VOID, 0x30000);
     addFuncArg(put_i, "i", TB_INT);
 
-    Symbol * get_i = addExtFunc(symbol_table, "get_i", TB_INT);
+    Symbol * get_i = addExtFunc(symbol_table, "get_i", TB_INT, 0x400000);
 
-    Symbol * put_d = addExtFunc(symbol_table, "put_d", TB_VOID);
+    Symbol * put_d = addExtFunc(symbol_table, "put_d", TB_VOID, 0x50000);
     addFuncArg(put_d, "d", TB_DOUBLE);
 
-    Symbol * get_d = addExtFunc(symbol_table, "get_d", TB_DOUBLE);
+    Symbol * get_d = addExtFunc(symbol_table, "get_d", TB_DOUBLE, 0x60000);
 
-    Symbol * put_c = addExtFunc(symbol_table, "put_c", TB_VOID);
+    Symbol * put_c = addExtFunc(symbol_table, "put_c", TB_VOID, 0x70000);
     addFuncArg(put_c, "c", TB_CHAR);
 
-    Symbol * get_c = addExtFunc(symbol_table, "get_c", TB_CHAR);
+    Symbol * get_c = addExtFunc(symbol_table, "get_c", TB_CHAR, 0x80000);
     printSymbolTable(symbol_table);
 }
 
@@ -1293,6 +1436,9 @@ int SemanticAnalyzer::ruleUnit()
 {
 	bool ok = true;
     initGlobalSymbols(symbols);
+    addInstr(bytecode, Instr(CALL, 0));
+    addInstr(bytecode, Instr(HALT));
+
 	while(ok)
 	{
 		ok = false;
@@ -1303,11 +1449,18 @@ int SemanticAnalyzer::ruleUnit()
 		if(consume(END))
         {
             cout<<"Found END at token "<<curTk<<"\n";
-
             cout<<"Final symbol table: ";
+            printSymbolTable(symbols);
+
+            //set first call to main
+            bytecode[0].args[0].i = findSymbol(symbols, "main")->addr;
+            cout<<"Nr instructions: "<<bytecode.size()<<"\n";
+            for (int i = 0; i < bytecode.size(); ++i)
+                cout<<i<<": "<<bytecode[i];
 			return 1;
         }
 	}
+
 	return 0;
 }
 

@@ -19,6 +19,8 @@ struct Symbol
     Symbol * struct_type;
     int nElements = -1; //only for arrays
     int depth; // 0-global, 1-in function, 2... - nested blocks in function
+    int64_t addr = 0;
+    int offset = 0;
 
     std::vector<Symbol*> args;
 
@@ -71,14 +73,13 @@ struct RetVal
     int isLVal; // if it is a LVal
     int isCtVal; // if it is a constant value (int, real, char, char[])
     CtVal ctVal; // the constat value
-
-
+    void * addr;
 };
 
 typedef std::vector<Symbol*> Symbols;
 
-Symbol* addSymbol(Symbols & symbols, std::string name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = -1);
-Symbol* addSymbol(Symbols & symbols, const char * name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = -1);
+Symbol* addSymbol(Symbols & symbols, std::string name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = -1, int64_t addr = 0);
+Symbol* addSymbol(Symbols & symbols, const char * name, int cls, int mem = MEM_GLOBAL, int type = TB_INT, int depth = 0, Symbol * struct_type = nullptr, int nElements = -1, int64_t addr = 0);
 
 Symbol* findSymbol(Symbols & symbols, const char * name);
 Symbol* findSymbol(Symbols & symbols, std::string name);
@@ -92,7 +93,7 @@ void cast(const Type &, const Type &);
 Type getArithType(const Type &, const Type &);
 
 //pre-defined functions
-Symbol *addExtFunc(Symbols & symbols, const char *name, int type = TB_INT, Symbol * struct_type = nullptr, int nElements = -1);
+Symbol *addExtFunc(Symbols & symbols, const char *name, int type = TB_INT, int64_t addr = 0, Symbol * struct_type = nullptr, int nElements = -1);
 Symbol *addFuncArg(Symbol *func, const char *name, int type = TB_INT, Symbol * struct_type = nullptr, int nElements = -1);
 
 #endif // SYMBOL_TABLE_H_INCLUDED

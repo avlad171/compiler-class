@@ -3,6 +3,8 @@
 
 #include "lexical_analysis.h"
 #include "symbol_table.h"
+#include "instruction.h"
+#include "vm.h"
 #include <vector>
 
 class SemanticAnalyzer
@@ -60,8 +62,15 @@ class SemanticAnalyzer
     RetVal rv;
     RetVal rv_struct;
 
+    //for code gen
+    std::vector<Instr> bytecode;
+
 public:
     SemanticAnalyzer(std::vector<Token> t);
+    std::vector<Instr> getBytecode()
+    {
+        return bytecode;
+    };
     int run();
 
 };

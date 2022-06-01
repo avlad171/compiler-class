@@ -9,6 +9,8 @@
 #include "semantic_analysis.h"
 using namespace std;
 
+int run(vector<Instr> & bytecode);
+
 int main(int argc, char * argv[])
 {
     if (argc < 2)
@@ -44,7 +46,9 @@ int main(int argc, char * argv[])
 
     SemanticAnalyzer S(L.getTokenList());
     S.run();
-    //S.getBytecode();
-    //VM.run()
+    cout<<"EMULATING PROGRAM!\n\n";
+    auto spl = S.getBytecode();
+
+    run(spl);
     return 0;
 }

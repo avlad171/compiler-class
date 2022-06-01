@@ -181,6 +181,7 @@ int run(vector<Instr> & bytecode)
     SP = stack;
     VIP = 0;
     stackAfter = stack + STACK_SIZE;
+    funcs[0x30000] = (uint64_t)put_i;
 
     //VM main loop
     while(true)
@@ -1090,7 +1091,7 @@ int run(vector<Instr> & bytecode)
 }
 
 
-int main()
+/*int main()
 {
     cout<<"Hello from the VM!\n";
 
@@ -1120,4 +1121,4 @@ int main()
     addInstr(bytecode, Instr (HALT));
     run(bytecode);
     return 0;
-}
+}*/
