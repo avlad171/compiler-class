@@ -5,7 +5,7 @@
 void printGreater()
 {
     int x, y;
-    x = 1;
+    x = 3;
     y = 2;
     if (x > y)
         put_i(x);

@@ -1,5 +1,6 @@
 #include "semantic_analysis.h"
 #include <iostream>
+#include <set>
 
 using namespace std;
 int typeArgSize(Type & t)
@@ -1324,9 +1325,19 @@ int SemanticAnalyzer::ruleExprPrimary()
     return 0;
 }
 
+set <int> visited;
 int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
 {
-    cout<<"Expr primary1\n";
+    cout<<"Expr primary1 at "<<curTk<<"\n";
+    int skip = 0;
+    if (visited.find(curTk) != visited.end())
+    {
+        cout<<"Skipping already tested expression primary at "<<curTk<<"\n";
+        skip = 1;
+        //return 1;
+    }
+    visited.insert(curTk);
+
     if(!consume(LPAR))
         return 0;
 
@@ -1349,13 +1360,14 @@ int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
 
             if(s->args[i]->nElements < 0)
             {  //only arrays are passed by addr
-                if(rv.isLVal)
+                if(!skip)
                 {
-                    addInstr(bytecode, Instr(PUSHCT_A, rv.addr));
-                    addInstr(bytecode, Instr(LOAD, typeArgSize(rv.type)));
+                    if (rv.isLVal) {
+                        addInstr(bytecode, Instr(PUSHCT_A, rv.addr));
+                        addInstr(bytecode, Instr(LOAD, typeArgSize(rv.type)));
+                    } else
+                        addInstr(bytecode, Instr(PUSHCT_I, rv.ctVal.i));
                 }
-                else
-                    addInstr(bytecode, Instr(PUSHCT_I, rv.ctVal.i));
             }
             else
             {
@@ -1389,10 +1401,13 @@ int SemanticAnalyzer::ruleExprPrimaryInner1(Symbol * s)
         exit(0);
     }
 
-    if (s->cls == CLS_FUNC)
-        addInstr(bytecode, Instr(CALL, s->addr));
-    else
-        addInstr(bytecode, Instr(CALLEXT, (void *)(s->addr)));
+    if(!skip)
+    {
+        if (s->cls == CLS_FUNC)
+            addInstr(bytecode, Instr(CALL, s->addr));
+        else
+            addInstr(bytecode, Instr(CALLEXT, (void *) (s->addr)));
+    }
 
     if (i + 1 < s->args.size())
     {

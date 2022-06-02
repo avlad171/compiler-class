@@ -248,7 +248,7 @@ std::ostream& operator<<(std::ostream& os, const Instr & ins)
 
         case HALT:
         {
-            os<<"HALT not done yet!\n";
+            os<<"HALT\n";
         }
             break;
 
